@@ -1,0 +1,112 @@
+[
+  {
+    "model": "training.specialty",
+    "pk": 1,
+    "fields": {
+      "code": "ATC",
+      "name": "Contrôle de la circulation aérienne",
+      "description": "Spécialité controllers aériens (TWR, APP, ACC)",
+      "is_active": true
+    }
+  },
+  {
+    "model": "training.specialty",
+    "pk": 2,
+    "fields": {
+      "code": "MET",
+      "name": "Météorologie aéronautique",
+      "description": "Spécialité météorologistes",
+      "is_active": true
+    }
+  },
+  {
+    "model": "training.specialty",
+    "pk": 3,
+    "fields": {
+      "code": "COM",
+      "name": "Télécommunications aéronautiques",
+      "description": "Spécialité techniciens télécom",
+      "is_active": true
+    }
+  },
+  {
+    "model": "training.specialty",
+    "pk": 4,
+    "fields": {
+      "code": "ELEC",
+      "name": "Électronique et maintenance",
+      "description": "Spécialité maintenance des équipements",
+      "is_active": true
+    }
+  },
+  {
+    "model": "training.specialty",
+    "pk": 5,
+    "fields": {
+      "code": "INFO",
+      "name": "Informatique aéronautique",
+      "description": "Spécialité systèmes d'information ATC",
+      "is_active": true
+    }
+  },
+  {
+    "model": "units.unit",
+    "pk": 1,
+    "fields": {
+      "code": "MIRE-CNS",
+      "name": "CNS (Communication, Navigation, Surveillance)",
+      "unit_type": "COM",
+      "location": "Section MIRE-Informatique",
+      "country": "Sénégal",
+      "description": "Unité CNS — gestion des systèmes de communication, navigation et surveillance aéronautique",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "units.unit",
+    "pk": 2,
+    "fields": {
+      "code": "MIRE-RSI-MTO",
+      "name": "RSI/MTO (Réseaux et Systèmes d'Information / Météorologie)",
+      "unit_type": "OTHER",
+      "location": "Section MIRE-Informatique",
+      "country": "Sénégal",
+      "description": "Unité RSI/MTO — gestion des réseaux informatiques et systèmes météorologiques",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "units.unit",
+    "pk": 3,
+    "fields": {
+      "code": "MIRE-QIP",
+      "name": "QIP (Qualification et Intégration du Personnel)",
+      "unit_type": "OTHER",
+      "location": "Section MIRE-Informatique",
+      "country": "Sénégal",
+      "description": "Unité QIP — qualification et intégration du personnel technique ASECNA",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "units.unit",
+    "pk": 4,
+    "fields": {
+      "code": "MIRE-ELB",
+      "name": "ELB (Énergie et Balisage)",
+      "unit_type": "OTHER",
+      "location": "Section MIRE-Informatique",
+      "country": "Sénégal",
+      "description": "Unité ELB — gestion de l'énergie et des systèmes de balisage lumineux aéronautique",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  }
+]

@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --color-asecna-50: #eef2ff;
+  --color-asecna-100: #e0e7ff;
+  --color-asecna-200: #c7d2fe;
+  --color-asecna-300: #a5b4fc;
+  --color-asecna-400: #818cf8;
+  --color-asecna-500: #6366f1;
+  --color-asecna-600: #4f46e5;
+  --color-asecna-700: #4338ca;
+  --color-asecna-800: #3730a3;
+  --color-asecna-900: #312e81;
+}
+
+body {
+  background-color: #f9fafb;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Composants réutilisables */
+.card {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04);
+  border: 1px solid #f3f4f6;
+  padding: 1.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: var(--color-asecna-600);
+  color: white;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-asecna-700);
+}

@@ -1,0 +1,19 @@
+# Dépendances communes à tous les environnements.
+#
+# Django 5.2 LTS : support assuré jusqu'en avril 2028, et première série
+# compatible Python 3.13/3.14 (la série 4.2 s'est arrêtée à la 4.2.30 du
+# 07/04/2026 et ne dépassait pas Python 3.12).
+Django==5.2.19
+
+# DRF 3.18+ est requis pour Django 5.2 ; il apporte aussi le support Python 3.14.
+djangorestframework==3.18.3
+
+# 5.5.1 déclare Django 5.2. Ses métadonnées s'arrêtent à Python 3.13 mais le
+# paquet fonctionne sous 3.14 (vérifié : tests JWT login/refresh/blacklist OK).
+djangorestframework-simplejwt==5.5.1
+
+psycopg[binary]>=3.1.0
+django-cors-headers==4.9.0
+drf-spectacular==0.30.0
+python-decouple==3.8
+Pillow>=10.3.0

@@ -1,0 +1,64 @@
+# =============================================================================
+# .gitignore racine — couvre le backend Django et le frontend React
+# (des .gitignore spécifiques existent aussi dans asecna_backend/ et
+#  asecna_frontend/ ; celui-ci garantit qu'aucun secret ne remonte à la racine)
+# =============================================================================
+
+# --- Secrets et configuration locale -----------------------------------------
+# Les fichiers .env contiennent SECRET_KEY et les mots de passe de base.
+# Seuls les .env.example sont versionnés.
+.env
+.env.*
+!.env.example
+
+# --- Environnements et dépendances -------------------------------------------
+venv/
+.venv/
+env/
+ENV/
+node_modules/
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# --- Base de données locale --------------------------------------------------
+# Régénérable à tout moment : migrate + loaddata + seed_demo
+*.sqlite3
+*.sqlite3-journal
+*.db
+
+# --- Fichiers générés --------------------------------------------------------
+staticfiles/
+media/
+dist/
+dist-ssr/
+build/
+schema.yml
+schema.json
+
+# --- Journaux ----------------------------------------------------------------
+# Le dossier logs/ est conservé via son .gitkeep
+*.log
+logs/*
+!logs/.gitkeep
+
+# --- Tests et couverture -----------------------------------------------------
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# --- Éditeurs et OS ----------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*.suo
+.DS_Store
+Thumbs.db
+desktop.ini
+*.local
