@@ -8,6 +8,7 @@ import {
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiErrorMessage } from '../../api/client'
+import type { User, Report } from '../../types'
 
 const STATUS_LABELS: Record<string, string> = {
     DRAFT: 'Brouillon', SUBMITTED: 'Soumis', APPROVED: 'Approuvé ✓', REJECTED: 'Rejeté',
@@ -22,11 +23,11 @@ const TYPE_LABELS: Record<string, string> = {
     ASSESSMENT: 'Bilan', INCIDENT: 'Incident', PROGRESS: 'Avancement', OTHER: 'Autre',
 }
 
-function canCreate(user: any) {
+function canCreate(user: User | null) {
     const r: string[] = user?.roles ?? []
     return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF') || r.includes('EVALUATOR')
 }
-function canApprove(user: any) {
+function canApprove(user: User | null) {
     const r: string[] = user?.roles ?? []
     return user?.is_superuser || r.includes('ADMIN') || r.includes('APPROVER') || r.includes('UNIT_CHIEF')
 }
@@ -58,7 +59,7 @@ export default function ReportsPage() {
 
     const reports = reportsData?.results ?? []
     const agents = agentsData?.results ?? []
-    const pending = reports.filter((r: any) => r.report_status === 'SUBMITTED').length
+    const pending = reports.filter((r: Report) => r.report_status === 'SUBMITTED').length
 
     const createMut = useMutation({
         mutationFn: (data: typeof form) => reportsApi.create({ ...data, agent: Number(data.agent) }),
@@ -108,7 +109,7 @@ export default function ReportsPage() {
                         onClick={() => setStatusFilter(s === statusFilter ? 'ALL' : s)}
                         className={`rounded-xl border p-4 text-left transition-all ${statusFilter === s ? 'ring-2 ring-indigo-500 ' : ''}${STATUS_COLORS[s].replace('text-', 'border-').split(' ')[0]} ${STATUS_COLORS[s]}`}>
                         <div className="text-2xl font-bold">
-                            {(reportsData?.results ?? []).filter((r: any) => r.report_status === s).length}
+                            {(reportsData?.results ?? []).filter((r: Report) => r.report_status === s).length}
                         </div>
                         <div className="text-sm mt-0.5">{STATUS_LABELS[s]}</div>
                     </button>
@@ -152,7 +153,7 @@ export default function ReportsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {reports.map((r: any) => (
+                            {reports.map((r: Report) => (
                                 <tr key={r.id} className="hover:bg-gray-50">
                                     <td className="px-5 py-3.5 font-medium text-gray-900 max-w-[200px] truncate">{r.title}</td>
                                     <td className="px-5 py-3.5 text-gray-500 text-xs">{TYPE_LABELS[r.report_type] ?? r.report_type}</td>
@@ -217,7 +218,7 @@ export default function ReportsPage() {
                                 <select required value={form.agent} onChange={e => setForm(f => ({ ...f, agent: e.target.value }))}
                                     className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                     <option value="">— Choisir un agent —</option>
-                                    {agents.map((a: any) => (
+                                    {agents.map((a: User) => (
                                         <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.matricule})</option>
                                     ))}
                                 </select>

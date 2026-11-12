@@ -111,13 +111,39 @@ cd asecna_backend
 python manage.py test --settings=config.settings.development
 ```
 
-**Attendu : `Ran 161 tests ... OK`**
+**Attendu : `Ran 204 tests ... OK`**
 
 | Suite | Tests | Ce qu'elle couvre |
 |---|---|---|
 | `apps.*.tests` | 110 | Modèles, règles métier, contraintes de base |
 | `apps.evaluations.tests_scoring` | 6 | Calcul du score d'une session d'examen |
 | `tests.test_api_contract` | 45 | Vues, permissions, serializers, pages HTML |
+| `tests.test_correction_workflow` | 25 | Workflow de correction via l'API, filtres de la fiche agent, cours, reset de mot de passe |
+| `tests.test_workflow_ledger` | 17 | Registre d'approbation : alimentation par les 3 modules, unicité, cloisonnement |
+
+> **Important — version de Django.** Le projet exige **Django 5.2.19**
+> (`requirements/base.txt`). Avec une série 4.2 installée globalement, les 5
+> tests de `HtmlPagesTest` échouent sur une incompatibilité
+> Django 4.2 / Python 3.14 (`Context.__copy__`), sans aucun rapport avec le
+> code du projet. Travaillez toujours dans le `venv` :
+>
+> ```powershell
+> .\venv\Scripts\Activate.ps1
+> python -c "import django; print(django.get_version())"   # doit afficher 5.2.19
+> ```
+
+### Tests du frontend
+
+```powershell
+cd asecna_frontend
+npm test          # 29 tests (Vitest)
+```
+
+| Suite | Tests | Ce qu'elle couvre |
+|---|---|---|
+| `src/api/client.test.ts` | 11 | Taille de page par défaut, lecture des erreurs métier |
+| `src/utils/dates.test.ts` | 11 | Règle d'alerte J-14 |
+| `src/pages/evaluations/SessionDetailPage.test.tsx` | 7 | Écran de correction : bornes du barème, cloisonnement agent |
 
 Pour une suite en particulier :
 
@@ -135,8 +161,8 @@ python manage.py check --settings=config.settings.development
 # Aucune migration oubliée
 python manage.py makemigrations --check --dry-run --settings=config.settings.development
 
-# Schéma OpenAPI : attendu "Errors: 0"
-python manage.py spectacular --file schema.yml --settings=config.settings.development
+# Schéma OpenAPI : attendu aucune sortie (ni erreur, ni avertissement)
+python manage.py spectacular --file schema.yml --fail-on-warn --settings=config.settings.development
 ```
 
 Côté frontend :
@@ -144,6 +170,8 @@ Côté frontend :
 ```powershell
 cd asecna_frontend
 npx tsc -b        # typage : aucune sortie = succès
+npm run lint      # attendu : aucune erreur
+npm test          # attendu : 29 tests passés
 npm run build     # compilation de production
 ```
 
@@ -155,17 +183,25 @@ npm run build     # compilation de production
 
 | # | Action | Résultat attendu |
 |---|---|---|
-| A1 | Se connecter | Badge **🛡️ Administrateur**, menu de 10 entrées |
+| A1 | Se connecter | Badge **🛡️ Administrateur**, menu de **12 entrées** |
 | A2 | Tableau de bord | Bandeaux d'alerte, 4 compteurs, graphique **des 7 statuts** |
-| A3 | Vérifier le graphique | Les 7 barres sont renseignées (Nouveau, Probation, Mentorat, Formation, Qualifié, Suspendu, Retraité) |
-| A4 | Menu **Agents** | Tableau de 23 agents : matricule, nom complet, statut, unité, date de recrutement — **aucune cellule vide** |
-| A5 | Rechercher `DIOP` | La liste se filtre sur l'agent correspondant |
-| A6 | Cliquer sur un agent | Fiche détaillée, onglet **Profil** : statut, unité, spécialité, dates |
-| A7 | Onglets de la fiche | Probation / Mentorat / ARCEP / Rapports affichent **uniquement** les données de cet agent |
-| A8 | Menu **Unités** | 5 unités, chacune avec **son nombre d'agents** (non nul) et son chef |
-| A9 | Déplier une unité | Liste des agents de cette unité uniquement |
-| A10 | Menu **Formations** | 6 formations, 4 cours (dont 1 brouillon), 4 stages |
-| A11 | Menu **Maintien QF** | 5 contrôles, dont 1 **en retard** signalé en rouge |
+| A3 | Vérifier le graphique | Les 7 barres sont présentes (Nouveau, Probation, Mentorat, Formation, Qualifié, Suspendu, **Retraité**) |
+| A4 | Menu **Agents** | Tableau de **23 agents** : matricule, nom complet, statut, unité, date de recrutement — **aucune cellule vide** |
+| A5 | Rechercher `DIOP` | La liste se filtre sur l'agent correspondant. La recherche part au serveur : elle trouve aussi les agents absents de la première page |
+| A6 | Filtrer par statut **Qualifié** | Seuls les agents qualifiés restent affichés, le compteur se met à jour |
+| A7 | Cliquer sur un agent | Fiche détaillée, onglet **Profil** : statut, unité, spécialité, dates |
+| A8 | Onglets de la fiche | Probation / Mentorat / ARCEP / Rapports affichent **uniquement** les données de cet agent |
+| A9 | Onglets **Compétences / Certifications / Performances** | Compétences avec leur niveau 1-5, certifications (dont une **expirée** en rouge), performances sur 3 ans |
+| A10 | Menu **Unités** | 5 unités, chacune avec **son nombre d'agents** (non nul) et son chef |
+| A11 | Déplier une unité | Liste des agents de cette unité uniquement |
+| A12 | Menu **Formations** | 6 formations, onglet **Cours** (dont 1 brouillon), 4 stages |
+| A13 | Menu **Maintien QF** | 5 contrôles, dont 1 **en retard** signalé en rouge |
+| A14 | Menu **Comptes & rôles** | Liste des comptes avec leurs rôles, boutons d'attribution et de révocation |
+| A15 | Attribuer un rôle **Mentor** à un agent | La pastille du rôle apparaît sur sa ligne |
+| A16 | Révoquer ce rôle (croix sur la pastille) | La pastille disparaît |
+| A17 | **Réinitialiser** le mot de passe d'un agent | En développement, le mot de passe temporaire s'affiche dans un bandeau (le courriel ne part pas avec le backend `console`) |
+| A18 | Menu **Journal d'audit**, onglet **Actions** | Chaque POST / PUT / PATCH / DELETE journalisé : méthode, endpoint, code, IP |
+| A19 | Onglet **Connexions** | Connexions réussies **et** échouées |
 
 ### 4.2 Chef d'unité — `ASE-2024-0010` / `Chef@2024!`
 
@@ -192,13 +228,15 @@ C'est le rôle le plus riche : il porte le **workflow de correction en 4 étapes
 |---|---|---|
 | E1 | Se connecter | Badge **📋 Évaluateur** |
 | E2 | Tableau de bord | 3 alertes : sessions à corriger, probations à évaluer (**2**), maintiens QF en retard (**1**) |
-| E3 | Menu **Évaluations** | Des sessions dans **les 5 états** : `SUBMITTED`, `CORRECTING`, `PENDING_APPROVAL`, `GRADED`, `REJECTED` |
-| E4 | Ouvrir la session `SUBMITTED` | Les réponses de l'agent, non encore corrigées |
-| E5 | Corriger une réponse | Saisir un score ≤ au barème de la question + un commentaire. La session passe à `CORRECTING` |
-| E6 | Saisir un score hors barème (ex. 999) | **Refusé** avec un message explicite (pas d'erreur serveur) |
-| E7 | Saisir un score non numérique | **Refusé** avec un message explicite |
-| E8 | Soumettre avant d'avoir tout corrigé | Refusé : « N réponse(s) n'ont pas encore été corrigées » |
-| E9 | Corriger toutes les réponses puis soumettre | Le score /100 est **calculé automatiquement**, statut → `PENDING_APPROVAL` |
+| E3 | Menu **Évaluations** | Des sessions dans **les 5 états** : `SUBMITTED`, `CORRECTING`, `PENDING_APPROVAL`, `GRADED`, `REJECTED`. Les sessions à corriger affichent « N réponse(s) à corriger » |
+| E4 | **Cliquer** sur la session `SUBMITTED` | L'écran de correction s'ouvre : chaque réponse de l'agent, son barème et la **réponse attendue** |
+| E5 | Corriger une réponse (note + Correcte/Incorrecte + commentaire) | La note est enregistrée, le compteur « réponses corrigées » avance, la session passe à `CORRECTING` |
+| E6 | Saisir un score hors barème (ex. 999 sur 10) | **Refusé avant envoi** : « Le score doit être compris entre 0 et 10 » et le bouton reste inactif |
+| E7 | Saisir un score non numérique | **Refusé** : « Le score doit être un nombre » |
+| E8 | Tenter de soumettre avant d'avoir tout corrigé | Le bouton **Soumettre au chef d'unité** reste inactif, avec le nombre de réponses restantes |
+| E9 | Corriger **toutes** les réponses puis soumettre | Le score /100 est **calculé automatiquement** sur le barème de l'examen complet, statut → `PENDING_APPROVAL` |
+| E9b | Vérifier la session de l'agent `mentoré` | `seed_demo` la livre avec **2 réponses sur 4 corrigées** : c'est le cas de test de E8 → E9 |
+| E9c | Ouvrir une session **rejetée** par le chef | Le motif du rejet s'affiche en rouge ; la correction peut être reprise |
 | E10 | Menu **Probations** | Les périodes à échéance proche |
 | E11 | **Finaliser** une probation avec 85 | Statut → `PASSED` ; l'agent passe en mentorat |
 | E12 | Finaliser une autre avec 55 | Statut → `FAILED` |
@@ -220,20 +258,27 @@ C'est le rôle le plus riche : il porte le **workflow de correction en 4 étapes
 | # | Action | Résultat attendu |
 |---|---|---|
 | I1 | Se connecter | Badge **🎓 Instructeur** |
-| I2 | Menu **Formations & Cours** | 4 cours, dont **1 brouillon non publié** |
-| I3 | Créer un cours | Rattaché à une formation, non publié par défaut |
-| I4 | **Publier** le cours | `is_published` → vrai ; il devient visible des agents |
-| I5 | **Dépublier** | Le cours disparaît de la vue des agents |
+| I2 | Menu **Formations**, onglet **Cours** | 4 cours, dont **1 brouillon non publié** |
+| I3 | **Nouveau cours** | Titre, formation et contenu ; il naît en **brouillon** |
+| I4 | **Publier** le cours | Pastille « Publié » ; il devient visible des agents |
+| I5 | **Dépublier** | Retour en brouillon ; le cours disparaît de la vue des agents |
+| I6 | Se reconnecter en **agent** (`ASE-2024-0104`), onglet **Cours** | Seuls les cours **publiés** apparaissent, aucun bouton de publication |
 
 ### 4.6 Approbateur — `ASE-2024-0050` / `Appro@2024!`
 
 | # | Action | Résultat attendu |
 |---|---|---|
-| P1 | Se connecter | Badge **✅ Approbateur**, menu de 4 entrées |
-| P2 | Menu **Rapports à approuver** | 2 rapports en `SUBMITTED` |
-| P3 | **Approuver** un rapport | Statut → `APPROVED`, approbateur et date enregistrés |
-| P4 | **Rejeter** un rapport | Statut → `REJECTED` avec l'avis saisi |
-| P5 | Tableau de bord | Workflows en attente (2) |
+| P1 | Se connecter | Badge **✅ Approbateur**, menu de **5 entrées** |
+| P2 | Tableau de bord | Bandeau « décision(s) en attente au registre » et la liste nominative de ce qui attend |
+| P3 | Menu **Rapports à approuver** | 2 rapports en `SUBMITTED` |
+| P4 | **Approuver** un rapport | Statut → `APPROVED`, approbateur et date enregistrés |
+| P5 | **Rejeter** un rapport | Statut → `REJECTED` avec l'avis saisi |
+| P6 | Menu **Approbations** | Le registre : rapports, fiches de mentorat **et** corrections d'examen dans la même liste |
+| P7 | Vérifier une ligne | Elle nomme l'objet, son module, l'agent concerné et qui l'a soumis |
+| P8 | Cliquer sur une ligne | Renvoie vers l'écran du module d'origine, là où la décision se prend |
+| P9 | Filtrer **Approuvés** | Les lignes portent le décideur, la date et l'avis |
+| P10 | Filtrer par module **Corrections d'examen** | Seules les corrections restent |
+| P11 | Approuver un rapport depuis son écran, revenir au registre | La ligne est passée à **Approuvé**, sans doublon |
 
 ### 4.7 Agent — `ASE-2024-0104` / `Agent@2024!`
 
@@ -246,7 +291,16 @@ C'est le rôle le plus riche : il porte le **workflow de correction en 4 étapes
 | G5 | **Ajouter une entrée** | Activité + durée ; elle apparaît comme non signée |
 | G6 | Menu **Ma probation** | Uniquement ses propres périodes |
 | G7 | Menu **Mes évaluations** | Uniquement ses sessions |
-| G8 | Menu **Formations** | Uniquement les cours **publiés** |
+| G8 | Menu **Formations**, onglet **Cours** | Uniquement les cours **publiés** |
+| G9 | Sur un examen **publié**, cliquer **Passer l'épreuve** | L'écran de composition s'ouvre : les énoncés, **sans la bonne réponse** |
+| G10 | Répondre puis **Enregistrer cette réponse** | La réponse est conservée côté serveur ; la pastille « enregistrée » apparaît |
+| G11 | Recharger la page | Les réponses déjà enregistrées sont **toujours là** (le brouillon vit sur le serveur) |
+| G12 | **Rendre ma copie** | Un avertissement signale les questions laissées vides (notées 0) ; après confirmation, statut → `SUBMITTED` |
+| G13 | Rouvrir l'épreuve | « Votre copie a déjà été rendue » — elle n'est plus modifiable |
+| G14 | Ouvrir **sa** session corrigée | Il relit sa copie et les commentaires, **sans** voir la réponse attendue |
+| G15 | Icône **Mon profil** (en haut à droite) | Son parcours, ses coordonnées modifiables et le changement de mot de passe |
+| G16 | Changer son mot de passe avec une confirmation différente | Refusé : « La confirmation ne correspond pas » |
+| G17 | Changer son mot de passe correctement, puis se reconnecter | Le nouveau mot de passe fonctionne |
 
 ### 4.8 Cumul de rôles — `ASE-2024-0031` / `Eval@2024!`
 
@@ -278,9 +332,11 @@ Ce sont les règles que le jury est le plus susceptible de questionner.
 |---|---|---|
 | Correction **manuelle** | Soumettre une copie | Aucun score automatique : l'évaluateur saisit chaque note |
 | Workflow en 4 étapes | Dérouler E4 → E9 → C4 | `SUBMITTED` → `CORRECTING` → `PENDING_APPROVAL` → `GRADED` |
-| Score calculé sur l'examen complet | Ne répondre qu'à 1 question sur 4 et la réussir | **25/100**, et non 100/100 |
+| Score calculé sur l'examen complet | Ne répondre qu'à 1 question sur 4 et la réussir | **25/100**, et non 100/100. L'écran de correction liste les questions sans réponse |
 | Rejet par le chef | Rejeter une correction | Statut `REJECTED`, motif obligatoire, l'évaluateur peut recorriger |
-| Score borné au barème | Saisir 999 sur une question à 10 points | Refusé |
+| Score borné au barème | Saisir 999 sur une question à 10 points | Refusé **côté interface**, avant même l'appel serveur |
+| Le corrigé ne fuit pas | Composer une épreuve en tant qu'agent | Les énoncés ne portent pas `correct_answer` |
+| Un examen vide n'est pas publiable | Créer un examen puis tenter de le publier sans question | Le bouton **Publier** reste inactif ; par l'API, 400 explicite |
 
 ### 5.3 Carnet ARCEP
 
@@ -300,7 +356,18 @@ Ce sont les règles que le jury est le plus susceptible de questionner.
 | Dispense | En tant que chef d'unité, dispenser un contrôle | Statut → `WAIVED` |
 | Détection des retards | Menu Maintien QF | `ASE-2024-0105` signalé en retard |
 
-### 5.5 Qualification initiale
+### 5.5 Registre d'approbation
+
+| Règle | Comment la vérifier | Attendu |
+|---|---|---|
+| Un brouillon n'y figure pas | Créer un rapport sans le soumettre | Absent du registre |
+| La soumission l'y inscrit | Soumettre ce rapport | Une ligne `SUBMITTED` apparaît |
+| Une seule ligne par objet | Rejeter puis resoumettre le même rapport | Toujours **une** ligne, remise à `SUBMITTED` |
+| La décision est tracée | Approuver avec un avis | Décideur, date et avis enregistrés |
+| Les 3 modules l'alimentent | Soumettre un rapport, un mentorat, une correction | Les trois apparaissent dans la même liste |
+| La trace survit à l'objet | Supprimer un objet soumis | La ligne reste, marquée « objet supprimé » |
+
+### 5.6 Qualification initiale
 
 | Règle | Comment la vérifier | Attendu |
 |---|---|---|
@@ -324,6 +391,12 @@ Ce sont les règles que le jury est le plus susceptible de questionner.
 | S10 | Après déconnexion, revenir en arrière dans le navigateur | Pas d'accès aux données ; redirection vers `/login` |
 | S11 | Laisser la session ouverte > 60 min puis agir | Le jeton est renouvelé **sans déconnexion** |
 | S12 | Se connecter à l'admin Django avec le matricule | Le formulaire attend bien un matricule |
+| S13 | En tant que **chef d'unité**, ouvrir `/audit` par l'URL | Écran « Accès réservé à l'administrateur » (pas d'erreur brute) |
+| S14 | En tant que **chef d'unité**, ouvrir `/users` par l'URL | Même message : aucune donnée de compte n'est exposée |
+| S15 | En tant qu'**agent**, ouvrir la session d'examen d'un autre par son URL | « Session introuvable, ou vous n'y avez pas accès » (404 côté API) |
+| S16 | En tant qu'**agent**, appeler `/api/v1/evaluations/sessions/<id>/answers/` sur la copie d'un autre | **404** (cloisonnement) |
+| S17 | En tant qu'**agent**, ouvrir `/workflows` | Uniquement **ses** soumissions, avec un message l'indiquant |
+| S18 | En tant qu'**agent**, appeler `/api/v1/workflows/pending/` | **403** (réservé aux décideurs) |
 
 ### Vérifier la traçabilité
 
@@ -354,6 +427,15 @@ Ouvrir http://127.0.0.1:8000/api/docs/
 | W9 | Rappeler `/token/refresh/` avec l'**ancien** `refresh` | **401** (jeton blacklisté après rotation) |
 | W10 | `GET /api/v1/arcep/entries/?book=1` | Uniquement les entrées de ce carnet |
 | W11 | `POST /api/v1/probation/` avec une durée de 5 jours | **400** avec le message métier (pas de 500) |
+| W12 | `GET /api/v1/evaluations/sessions/{id}/answers/` | La copie : réponses, barèmes, corrections, questions sans réponse |
+| W13 | `GET /api/v1/evaluations/exams/{id}/questions/` en tant qu'agent | Les énoncés **sans** `correct_answer` |
+| W14 | `POST /api/v1/evaluations/exams/{id}/publish/` sur un examen sans question | **400** « Un examen sans question ne peut pas etre publie » |
+| W15 | `GET /api/v1/agents/skills/?agent=<id>` | Uniquement les compétences de cet agent |
+| W16 | `GET /api/v1/training/courses/?is_published=false` en tant qu'instructeur | Uniquement ses brouillons |
+| W17 | `POST /api/v1/auth/users/{id}/reset-password/` | `delivered_by_email` indique si le courriel est parti ; `temp_password` n'apparaît **que** s'il n'a pas pu partir |
+| W18 | `GET /api/v1/workflows/pending/` | Les décisions en attente, chacune avec `module`, `module_label` et `target` |
+| W19 | `GET /api/v1/workflows/?module=examsession` | Uniquement les corrections d'examen |
+| W20 | `POST /api/v1/reports/{id}/submit/` puis `GET /api/v1/workflows/?object_id={id}` | La ligne de registre vient d'être créée |
 
 ---
 
@@ -363,32 +445,34 @@ Ouvrir http://127.0.0.1:8000/api/docs/
 
 ```
 PREPARATION
-[ ] Backend lancé                        [ ] Frontend lancé
-[ ] seed_demo exécuté                    [ ] 161 tests automatisés OK
+[ ] venv active (Django 5.2.19)          [ ] Frontend lance
+[ ] seed_demo execute                    [ ] 204 tests backend OK
+[ ] 29 tests frontend OK                 [ ] npm run lint sans erreur
 
 PAR ROLE
-[ ] A1-A11   Administrateur
-[ ] C1-C12   Chef d'unité
-[ ] E1-E14   Évaluateur
+[ ] A1-A19   Administrateur
+[ ] C1-C12   Chef d'unite
+[ ] E1-E14   Evaluateur (dont E4-E9 : ecran de correction)
 [ ] M1-M5    Mentor
-[ ] I1-I5    Instructeur
-[ ] P1-P5    Approbateur
-[ ] G1-G8    Agent
-[ ] R1-R3    Cumul de rôles
+[ ] I1-I6    Instructeur (onglet Cours)
+[ ] P1-P11   Approbateur (dont le registre)
+[ ] G1-G17   Agent (dont G9-G14 : composition d'examen)
+[ ] R1-R3    Cumul de roles
 
 REGLES METIER
-[ ] 5.1 Période d'essai (5 règles)
-[ ] 5.2 Évaluations (5 règles)
-[ ] 5.3 Carnet ARCEP (4 règles)
-[ ] 5.4 Maintien de qualification (4 règles)
-[ ] 5.5 Qualification initiale
+[ ] 5.1 Periode d'essai (5 regles)
+[ ] 5.2 Evaluations (7 regles)
+[ ] 5.3 Carnet ARCEP (4 regles)
+[ ] 5.4 Maintien de qualification (4 regles)
+[ ] 5.5 Registre d'approbation (6 regles)
+[ ] 5.6 Qualification initiale
 
 SECURITE
-[ ] S1-S12   Authentification et cloisonnement
-[ ] T1-T3    Traçabilité
+[ ] S1-S18   Authentification et cloisonnement
+[ ] T1-T3    Tracabilite
 
 API
-[ ] W1-W11   Swagger
+[ ] W1-W20   Swagger
 ```
 
 ---

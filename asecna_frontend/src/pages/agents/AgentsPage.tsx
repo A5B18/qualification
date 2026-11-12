@@ -2,25 +2,40 @@ import { useQuery } from '@tanstack/react-query'
 import { agentsApi } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import { Users, Search, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
-import { AgentStatusLabels, AgentStatusColors, type AgentStatus } from '../../types'
+import { useEffect, useState } from 'react'
+import {
+    AgentStatusLabels, AgentStatusColors,
+    type AgentStatus, type User,
+} from '../../types'
 
 export default function AgentsPage() {
     const navigate = useNavigate()
     const [search, setSearch] = useState('')
+    const [debounced, setDebounced] = useState('')
+    const [statusFilter, setStatusFilter] = useState('')
+
+    // La recherche part au serveur (`?search=`), qui interroge matricule, nom,
+    // prénom et courriel sur l'ensemble des agents. Elle était purement locale
+    // et ne portait donc que sur la page reçue : un agent absent de celle-ci
+    // restait introuvable. On temporise la frappe pour ne pas lancer une
+    // requête par caractère.
+    useEffect(() => {
+        const timer = setTimeout(() => setDebounced(search.trim()), 300)
+        return () => clearTimeout(timer)
+    }, [search])
 
     const { data, isLoading } = useQuery({
-        queryKey: ['agents-profiles'],
-        queryFn: () => agentsApi.profiles().then(r => r.data),
+        queryKey: ['agents-profiles', debounced, statusFilter],
+        queryFn: () => agentsApi.profiles({
+            ...(debounced ? { search: debounced } : {}),
+            ...(statusFilter ? { status: statusFilter } : {}),
+        }).then(r => r.data),
+        // Garde la liste précédente pendant la frappe : sans cela, chaque
+        // caractère vidait le tableau le temps de la requête.
+        placeholderData: (previous) => previous,
     })
 
-    const profiles = data?.results ?? []
-    const filtered = profiles.filter((p: any) =>
-        search === '' ||
-        p.user_detail?.matricule?.toLowerCase().includes(search.toLowerCase()) ||
-        p.user_detail?.first_name?.toLowerCase().includes(search.toLowerCase()) ||
-        p.user_detail?.last_name?.toLowerCase().includes(search.toLowerCase())
-    )
+    const filtered = data?.results ?? []
 
     return (
         <div className="space-y-6">
@@ -29,21 +44,36 @@ export default function AgentsPage() {
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         <Users size={24} className="text-asecna-600" /> Agents
                     </h1>
-                    <p className="text-gray-500 text-sm mt-1">{data?.count ?? 0} agents enregistrés</p>
+                    <p className="text-gray-500 text-sm mt-1">
+                        {data?.count ?? 0} agent{(data?.count ?? 0) > 1 ? 's' : ''}
+                        {(debounced || statusFilter) ? ' trouvé(s)' : ' enregistré(s)'}
+                    </p>
                 </div>
             </div>
 
             {/* Barre de recherche */}
             <div className="card p-4">
-                <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher par matricule, nom, prénom..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-asecna-500"
-                    />
+                <div className="flex flex-col md:flex-row gap-3">
+                    <div className="relative flex-1">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher par matricule, nom, prénom, courriel..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-asecna-500"
+                        />
+                    </div>
+                    <select
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-asecna-500"
+                    >
+                        <option value="">Tous les statuts</option>
+                        {Object.entries(AgentStatusLabels).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
@@ -71,7 +101,7 @@ export default function AgentsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {filtered.map((profile: any) => {
+                            {filtered.map((profile: User) => {
                                 const status = profile.status as AgentStatus
                                 return (
                                     <tr

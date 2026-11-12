@@ -4,13 +4,17 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
 from django.utils import timezone
+
+from apps.workflows import services as workflows
 
 from core.permissions import IsEvaluator, IsUnitChief, IsEvaluatorOrInstructor, IsApproverOrUnitChief
 from .models import Question, Exam, ExamSession, Answer
 from .serializers import (
     QuestionSerializer, ExamSerializer, ExamSessionSerializer,
     AnswerSerializer, AnswerSubmitSerializer,
+    QuestionPublicSerializer, AnswerGradeSerializer,
 )
 
 
@@ -28,6 +32,29 @@ class QuestionViewSet(viewsets.ModelViewSet):
                 .select_related('training', 'created_by')
                 .order_by('-created_at', '-id'))
     serializer_class = QuestionSerializer
+
+    def get_queryset(self):
+        """
+        Filtres de la banque de questions.
+
+        L'ecran de composition d'un examen doit pouvoir restreindre la banque
+        (par formation, par type, par examen deja rattache) ; sans ces filtres
+        il chargeait la banque entiere et filtrait dans le navigateur.
+        """
+        qs = super().get_queryset()
+        training_id = self.request.query_params.get('training')
+        if training_id:
+            qs = qs.filter(training_id=training_id)
+        question_type = self.request.query_params.get('question_type')
+        if question_type:
+            qs = qs.filter(question_type=question_type)
+        exam_id = self.request.query_params.get('exam')
+        if exam_id:
+            qs = qs.filter(exams__id=exam_id)
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(text__icontains=search)
+        return qs.distinct()
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
@@ -52,12 +79,77 @@ class ExamViewSet(viewsets.ModelViewSet):
     serializer_class = ExamSerializer
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve', 'start_session'):
+        # `exam_questions` doit rester ouvert a tout agent authentifie : c'est
+        # par la que le candidat recoit les enonces (ampute du corrige). Sous
+        # la regle EVALUATEUR/INSTRUCTEUR il renvoyait 403, et aucun agent ne
+        # pouvait composer.
+        if self.action in ('list', 'retrieve', 'start_session', 'exam_questions'):
             return [IsAuthenticated()]
         return [IsAuthenticated(), IsEvaluatorOrInstructor()]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        training_id = self.request.query_params.get('training')
+        if training_id:
+            qs = qs.filter(training_id=training_id)
+        exam_status = self.request.query_params.get('exam_status')
+        if exam_status:
+            qs = qs.filter(exam_status=exam_status)
+        return qs
+
+    @action(detail=True, methods=['get'], url_path='questions',
+            serializer_class=QuestionPublicSerializer)
+    def exam_questions(self, request, pk=None):
+        """
+        Enonces rattaches a l'examen, dans l'ordre de la banque.
+
+        Indispensable a la composition : l'agent n'avait aucun moyen de lire
+        les questions d'un examen (seul `questions_count` etait expose), donc
+        aucun ecran ne pouvait lui faire passer l'epreuve.
+
+        L'agent recoit la version publique (sans `correct_answer`) ; les
+        evaluateurs, instructeurs, chefs d'unite et admins recoivent la fiche
+        complete pour preparer la correction.
+        """
+        exam = self.get_object()
+        questions = exam.questions.filter(is_active=True).order_by('id')
+        user = request.user
+        privileged = (
+            user.is_admin
+            or user.has_role('EVALUATOR')
+            or user.has_role('INSTRUCTOR')
+            or user.has_role('UNIT_CHIEF')
+        )
+        serializer_cls = QuestionSerializer if privileged else QuestionPublicSerializer
+        data = serializer_cls(questions, many=True).data
+        return Response({'count': questions.count(), 'results': data})
+
+    @action(detail=True, methods=['post'], url_path='publish',
+            permission_classes=[IsAuthenticated, IsEvaluatorOrInstructor])
+    def publish(self, request, pk=None):
+        """Publier un examen : il devient composable par les agents."""
+        exam = self.get_object()
+        if not exam.questions.filter(is_active=True).exists():
+            return Response(
+                {'error': {'code': 'bad_request',
+                           'message': 'Un examen sans question ne peut pas etre publie.'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        exam.exam_status = Exam.ExamStatus.PUBLISHED
+        exam.save(update_fields=['exam_status'])
+        return Response(ExamSerializer(exam).data)
+
+    @action(detail=True, methods=['post'], url_path='unpublish',
+            permission_classes=[IsAuthenticated, IsEvaluatorOrInstructor])
+    def unpublish(self, request, pk=None):
+        """Repasser un examen en brouillon."""
+        exam = self.get_object()
+        exam.exam_status = Exam.ExamStatus.DRAFT
+        exam.save(update_fields=['exam_status'])
+        return Response(ExamSerializer(exam).data)
 
     @action(detail=True, methods=['post'], url_path='start-session')
     def start_session(self, request, pk=None):
@@ -122,9 +214,72 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
         # Ordre explicite : sans lui la pagination DRF est instable
         return qs.order_by('-started_at', '-id')
 
+    # ── 0. Lecture des copies ────────────────────────────────────────────────
+
+    @action(detail=True, methods=['get'], url_path='answers',
+            serializer_class=AnswerSerializer)
+    def answers(self, request, pk=None):
+        """
+        Copie de la session : une entree par reponse, avec son bareme et sa
+        correction eventuelle.
+
+        C'est la brique qui manquait au workflow en 4 etapes : `grade-answer`
+        attend un `answer_id`, mais aucun endpoint ne listait les reponses
+        d'une session. L'evaluateur ne pouvait donc pas corriger depuis
+        l'interface, et la session restait bloquee en SUBMITTED.
+
+        Le cloisonnement est celui de `get_queryset()` : un agent ne peut
+        demander que ses propres sessions (404 sinon).
+
+        Les enonces sont joints pour eviter un aller-retour par question.
+        La reponse attendue (`correct_answer`) n'est ajoutee que pour les
+        profils habilites a corriger : sans elle l'evaluateur noterait a
+        l'aveugle, mais un agent qui relit sa copie ne doit pas y decouvrir
+        le corrige.
+        """
+        session = self.get_object()
+        user = request.user
+        privileged = (
+            user.is_admin
+            or user.has_role('EVALUATOR')
+            or user.has_role('UNIT_CHIEF')
+            or user.has_role('APPROVER')
+        )
+
+        answers = list(session.answers
+                       .select_related('question', 'corrected_by')
+                       .order_by('question_id'))
+        data = AnswerSerializer(answers, many=True).data
+        if privileged:
+            for item, answer in zip(data, answers):
+                detail = item.get('question_detail')
+                if isinstance(detail, dict):
+                    detail['correct_answer'] = answer.question.correct_answer
+                    detail['question_kind'] = answer.question.question_kind
+                    detail['options'] = answer.question.options
+
+        # Questions de l'examen restees sans reponse : elles comptent pour 0
+        # dans `compute_score_from_items`, l'ecran doit donc les montrer.
+        answered_ids = {a.question_id for a in answers}
+        unanswered = (session.exam.questions
+                      .filter(is_active=True)
+                      .exclude(id__in=answered_ids)
+                      .order_by('id'))
+
+        return Response({
+            'count': len(data),
+            'results': data,
+            'unanswered': QuestionPublicSerializer(unanswered, many=True).data,
+            'session_status': session.session_status,
+            'pending_correction': sum(
+                1 for a in answers if a.evaluator_score is None
+            ),
+        })
+
     # ── 1. Agent soumet ses réponses ──────────────────────────────────────────
 
-    @action(detail=True, methods=['post'], url_path='submit-answer')
+    @action(detail=True, methods=['post'], url_path='submit-answer',
+            serializer_class=AnswerSubmitSerializer)
     def submit_answer(self, request, pk=None):
         """Soumettre une réponse à une question (agent uniquement)."""
         session = self.get_object()
@@ -171,7 +326,8 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
     # ── 2. Évaluateur corrige réponse par réponse ────────────────────────────
 
     @action(detail=True, methods=['post'], url_path='grade-answer',
-            permission_classes=[IsAuthenticated, IsEvaluator])
+            permission_classes=[IsAuthenticated, IsEvaluator],
+            serializer_class=AnswerGradeSerializer)
     def grade_answer(self, request, pk=None):
         """
         EVALUATEUR : corrige une réponse spécifique.
@@ -285,7 +441,9 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         score = session.compute_score_from_items()
-        session.submit_for_approval(evaluator=request.user, score=score)
+        with transaction.atomic():
+            session.submit_for_approval(evaluator=request.user, score=score)
+            workflows.record_submission(session, submitted_by=request.user)
         return Response(ExamSessionSerializer(session).data)
 
     # ── 4. Chef d'unité approuve ou rejette ──────────────────────────────────
@@ -304,7 +462,11 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
                            'message': 'La session doit être en PENDING_APPROVAL pour être approuvée.'}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        session.approve(unit_chief=request.user)
+        with transaction.atomic():
+            session.approve(unit_chief=request.user)
+            workflows.record_approval(
+                session, approver=request.user, as_unit_chief=True,
+            )
         return Response(ExamSessionSerializer(session).data)
 
     @action(detail=True, methods=['post'], url_path='reject',
@@ -326,5 +488,10 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
         if not reason:
             return Response({'error': {'code': 'bad_request', 'message': 'Un motif de rejet est obligatoire.'}},
                             status=status.HTTP_400_BAD_REQUEST)
-        session.reject(unit_chief=request.user, reason=reason)
+        with transaction.atomic():
+            session.reject(unit_chief=request.user, reason=reason)
+            workflows.record_rejection(
+                session, approver=request.user, reason=reason,
+                as_unit_chief=True,
+            )
         return Response(ExamSessionSerializer(session).data)

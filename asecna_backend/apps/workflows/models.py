@@ -57,6 +57,16 @@ class ApprovalWorkflow(models.Model):
     class Meta:
         db_table = 'workflows_approval'
         indexes  = [models.Index(fields=['content_type', 'object_id'], name='idx_workflow_object')]
+        constraints = [
+            # Un objet metier n'a qu'une ligne de registre : c'est ce qui rend
+            # `apps.workflows.services` idempotent (une resoumission met la
+            # ligne a jour au lieu d'en empiler une seconde) et ce qui permet
+            # de remonter du registre vers l'objet sans ambiguite.
+            models.UniqueConstraint(
+                fields=['content_type', 'object_id'],
+                name='unique_workflow_per_object',
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"Workflow [{self.workflow_status}] — {self.content_object}"

@@ -15,21 +15,26 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../store/authContextValue'
 import {
     agentsApi, probationApi, mentoringApi, reportsApi,
-    evaluationsApi, trainingApi, arcepApi,
+    evaluationsApi, trainingApi, arcepApi, workflowsApi,
 } from '../../api'
 import { Link } from 'react-router-dom'
 import {
     Users, ClipboardList, BookOpen, FileText, TrendingUp,
     Award, AlertTriangle, Clock, ShieldCheck, ChevronRight,
-    BookMarked, GraduationCap, CheckCircle, BookCheck,
+    BookMarked, GraduationCap, CheckCircle, BookCheck, GitPullRequestArrow,
+    type LucideIcon
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useNow, daysUntil } from '../../utils/dates'
+import type {
+    User, ExamSession, MentoringRecord, Report, ProbationPeriod,
+    Internship, Training, ApprovalWorkflow,
+} from '../../types'
 
 // ─── Utilitaires communs ──────────────────────────────────────────────────────
 
 function StatCard({ icon: Icon, label, value, color, to }: {
-    icon: any; label: string; value: number | string; color: string; to?: string
+    icon: LucideIcon; label: string; value: number | string; color: string; to?: string
 }) {
     const inner = (
         <div className="card flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer">
@@ -62,7 +67,7 @@ function AlertBanner({ count, label, to, color = 'border-orange-400 bg-orange-50
 }
 
 function SectionCard({ title, icon: Icon, iconColor, children }: {
-    title: string; icon: any; iconColor: string; children: React.ReactNode
+    title: string; icon: LucideIcon; iconColor: string; children: React.ReactNode
 }) {
     return (
         <div className="card">
@@ -90,17 +95,21 @@ function AdminDashboard() {
     const repList = reports?.results ?? []
     const sesList = sessions?.results ?? []
 
-    const pendingEvals = sesList.filter((s: any) => s.session_status === 'PENDING_APPROVAL').length
-    const pendingMent = mentList.filter((m: any) => m.mentoring_status === 'SUBMITTED').length
-    const pendingReports = repList.filter((r: any) => r.report_status === 'SUBMITTED').length
+    const pendingEvals = sesList.filter((s: ExamSession) => s.session_status === 'PENDING_APPROVAL').length
+    const pendingMent = mentList.filter((m: MentoringRecord) => m.mentoring_status === 'SUBMITTED').length
+    const pendingReports = repList.filter((r: Report) => r.report_status === 'SUBMITTED').length
 
     const chartData = [
-        { name: 'Nouveau', value: profiles.filter((a: any) => a.status === 'NEW').length, color: '#6b7280' },
-        { name: 'Probation', value: profiles.filter((a: any) => a.status === 'PROBATION').length, color: '#f59e0b' },
-        { name: 'Mentorat', value: profiles.filter((a: any) => a.status === 'MENTORED').length, color: '#3b82f6' },
-        { name: 'Formation', value: profiles.filter((a: any) => a.status === 'TRAINEE').length, color: '#8b5cf6' },
-        { name: 'Qualifié', value: profiles.filter((a: any) => a.status === 'QUALIFIED').length, color: '#10b981' },
-        { name: 'Suspendu', value: profiles.filter((a: any) => a.status === 'SUSPENDED').length, color: '#ef4444' },
+        { name: 'Nouveau', value: profiles.filter((a: User) => a.status === 'NEW').length, color: '#6b7280' },
+        { name: 'Probation', value: profiles.filter((a: User) => a.status === 'PROBATION').length, color: '#f59e0b' },
+        { name: 'Mentorat', value: profiles.filter((a: User) => a.status === 'MENTORED').length, color: '#3b82f6' },
+        { name: 'Formation', value: profiles.filter((a: User) => a.status === 'TRAINEE').length, color: '#8b5cf6' },
+        { name: 'Qualifié', value: profiles.filter((a: User) => a.status === 'QUALIFIED').length, color: '#10b981' },
+        { name: 'Suspendu', value: profiles.filter((a: User) => a.status === 'SUSPENDED').length, color: '#ef4444' },
+        // La barre « Retraite » manquait : le backend compte 7 statuts de
+        // parcours (AgentStatus), le graphique n'en montrait que 6, et les
+        // agents retraites disparaissaient de la repartition.
+        { name: 'Retraité', value: profiles.filter((a: User) => a.status === 'RETIRED').length, color: '#9ca3af' },
     ]
 
     return (
@@ -113,8 +122,8 @@ function AdminDashboard() {
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard icon={Users} label="Agents total" value={agents?.count ?? 0} color="bg-asecna-600" to="/agents" />
-                <StatCard icon={ClipboardList} label="En probation" value={probList.filter((p: any) => p.probation_status === 'IN_PROGRESS').length} color="bg-amber-500" to="/probation" />
-                <StatCard icon={BookOpen} label="En mentorat" value={mentList.filter((m: any) => m.mentoring_status !== 'COMPLETED').length} color="bg-blue-500" to="/mentoring" />
+                <StatCard icon={ClipboardList} label="En probation" value={probList.filter((p: ProbationPeriod) => p.probation_status === 'IN_PROGRESS').length} color="bg-amber-500" to="/probation" />
+                <StatCard icon={BookOpen} label="En mentorat" value={mentList.filter((m: MentoringRecord) => m.mentoring_status !== 'COMPLETED').length} color="bg-blue-500" to="/mentoring" />
                 <StatCard icon={Award} label="Évals en attente" value={pendingEvals} color="bg-purple-500" to="/evaluations" />
             </div>
 
@@ -138,7 +147,7 @@ function AdminDashboard() {
                     <h2 className="text-base font-semibold text-gray-900 mb-4">Activité en attente</h2>
                     <div className="space-y-3">
                         {[
-                            { label: 'Agents qualifiés', value: profiles.filter((a: any) => a.status === 'QUALIFIED').length, color: 'bg-green-500' },
+                            { label: 'Agents qualifiés', value: profiles.filter((a: User) => a.status === 'QUALIFIED').length, color: 'bg-green-500' },
                             { label: 'Sessions à approuver', value: pendingEvals, color: 'bg-purple-500' },
                             { label: 'Mentorats soumis', value: pendingMent, color: 'bg-blue-500' },
                             { label: 'Rapports soumis', value: pendingReports, color: 'bg-orange-500' },
@@ -167,9 +176,9 @@ function UnitChiefDashboard() {
     const { data: probations } = useQuery({ queryKey: ['prob-chief'], queryFn: () => probationApi.list().then(r => r.data) })
     const { data: arcepBooks } = useQuery({ queryKey: ['arcep-chief'], queryFn: () => arcepApi.books().then(r => r.data) })
 
-    const toApproveEval = (sessions?.results ?? []).filter((s: any) => s.session_status === 'PENDING_APPROVAL')
-    const toApproveMent = (mentorings?.results ?? []).filter((m: any) => m.mentoring_status === 'SUBMITTED')
-    const inProbation = (probations?.results ?? []).filter((p: any) => p.probation_status === 'IN_PROGRESS')
+    const toApproveEval = (sessions?.results ?? []).filter((s: ExamSession) => s.session_status === 'PENDING_APPROVAL')
+    const toApproveMent = (mentorings?.results ?? []).filter((m: MentoringRecord) => m.mentoring_status === 'SUBMITTED')
+    const inProbation = (probations?.results ?? []).filter((p: ProbationPeriod) => p.probation_status === 'IN_PROGRESS')
     const books = arcepBooks?.results ?? []
 
     return (
@@ -188,7 +197,7 @@ function UnitChiefDashboard() {
             {toApproveEval.length > 0 && (
                 <SectionCard title="Corrections à approuver" icon={Award} iconColor="text-purple-600">
                     <div className="space-y-2">
-                        {toApproveEval.slice(0, 5).map((s: any) => (
+                        {toApproveEval.slice(0, 5).map((s: ExamSession) => (
                             <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
@@ -207,7 +216,7 @@ function UnitChiefDashboard() {
             {inProbation.length > 0 && (
                 <SectionCard title="Agents en période d'essai" icon={ClipboardList} iconColor="text-amber-600">
                     <div className="space-y-2">
-                        {inProbation.slice(0, 5).map((p: any) => {
+                        {inProbation.slice(0, 5).map((p: ProbationPeriod) => {
                             const daysLeft = daysUntil(p.end_date, now)
                             return (
                                 <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-amber-50">
@@ -231,28 +240,64 @@ function ApproverDashboard() {
     const { data: reports } = useQuery({ queryKey: ['reports-appr'], queryFn: () => reportsApi.list().then(r => r.data) })
     const { data: mentorings } = useQuery({ queryKey: ['ments-appr'], queryFn: () => mentoringApi.list().then(r => r.data) })
     const { data: sessions } = useQuery({ queryKey: ['sess-appr'], queryFn: () => evaluationsApi.sessions().then(r => r.data) })
+    // Le registre transversal : il dit enfin *ce qui* attend une decision.
+    // Le compteur « workflows en attente » etait auparavant decoratif, aucune
+    // ligne n'etant rattachee a un objet reel.
+    const { data: pendingWf } = useQuery({
+        queryKey: ['workflows-pending'],
+        queryFn: () => workflowsApi.pending().then(r => r.data),
+    })
 
-    const pendingReports = (reports?.results ?? []).filter((r: any) => r.report_status === 'SUBMITTED')
-    const pendingMent = (mentorings?.results ?? []).filter((m: any) => m.mentoring_status === 'SUBMITTED')
-    const pendingEval = (sessions?.results ?? []).filter((s: any) => s.session_status === 'PENDING_APPROVAL')
+    const pendingReports = (reports?.results ?? []).filter((r: Report) => r.report_status === 'SUBMITTED')
+    const pendingMent = (mentorings?.results ?? []).filter((m: MentoringRecord) => m.mentoring_status === 'SUBMITTED')
+    const pendingEval = (sessions?.results ?? []).filter((s: ExamSession) => s.session_status === 'PENDING_APPROVAL')
+    const waiting: ApprovalWorkflow[] = pendingWf?.results ?? []
 
     return (
         <div className="space-y-5">
             <div className="space-y-2">
+                <AlertBanner count={waiting.length} label="décision(s) en attente au registre" to="/workflows" color="border-amber-500 bg-amber-50" />
                 <AlertBanner count={pendingReports.length} label="rapport(s) soumis à approuver" to="/reports" color="border-indigo-500 bg-indigo-50" />
                 <AlertBanner count={pendingMent.length} label="fiche(s) de mentorat soumise(s)" to="/mentoring" />
                 <AlertBanner count={pendingEval.length} label="évaluation(s) à approuver" to="/evaluations" color="border-purple-500 bg-purple-50" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <StatCard icon={GitPullRequestArrow} label="En attente (tous modules)" value={waiting.length} color="bg-amber-500" to="/workflows" />
                 <StatCard icon={FileText} label="Rapports à approuver" value={pendingReports.length} color="bg-indigo-600" to="/reports" />
                 <StatCard icon={BookOpen} label="Mentorats soumis" value={pendingMent.length} color="bg-blue-500" to="/mentoring" />
                 <StatCard icon={Award} label="Évals à valider" value={pendingEval.length} color="bg-purple-500" to="/evaluations" />
             </div>
 
+            {waiting.length > 0 && (
+                <SectionCard title="Registre — en attente de décision" icon={GitPullRequestArrow} iconColor="text-amber-600">
+                    <div className="space-y-2">
+                        {waiting.slice(0, 8).map((wf: ApprovalWorkflow) => (
+                            <Link
+                                key={wf.id}
+                                to={wf.target?.route ?? '/workflows'}
+                                className="flex items-center justify-between p-3 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors"
+                            >
+                                <div className="min-w-0">
+                                    <div className="text-sm font-medium text-gray-900">
+                                        {wf.target?.label ?? `Objet #${wf.object_id}`}
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                        {wf.module_label}
+                                        {wf.target?.agent && ` · ${wf.target.agent.full_name}`}
+                                        {wf.submitted_by_name && ` · soumis par ${wf.submitted_by_name}`}
+                                    </div>
+                                </div>
+                                <ChevronRight size={14} className="text-amber-600 shrink-0" />
+                            </Link>
+                        ))}
+                    </div>
+                </SectionCard>
+            )}
+
             {pendingReports.length > 0 && (
                 <SectionCard title="Rapports soumis — à approuver" icon={FileText} iconColor="text-indigo-600">
                     <div className="space-y-2">
-                        {pendingReports.slice(0, 6).map((r: any) => (
+                        {pendingReports.slice(0, 6).map((r: Report) => (
                             <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-indigo-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">{r.title}</div>
@@ -277,8 +322,8 @@ function EvaluatorDashboard() {
     const { data: probDue } = useQuery({ queryKey: ['prob-due'], queryFn: () => probationApi.evaluationDue().then(r => r.data) })
     const { data: maintOverdue } = useQuery({ queryKey: ['maint-over'], queryFn: () => trainingApi.overdueMaintenances().then(r => r.data) })
 
-    const submitted = (sessions?.results ?? []).filter((s: any) => s.session_status === 'SUBMITTED')
-    const correcting = (sessions?.results ?? []).filter((s: any) => s.session_status === 'CORRECTING')
+    const submitted = (sessions?.results ?? []).filter((s: ExamSession) => s.session_status === 'SUBMITTED')
+    const correcting = (sessions?.results ?? []).filter((s: ExamSession) => s.session_status === 'CORRECTING')
     const dueProb = probDue?.results ?? []
     const overdueMain = maintOverdue?.results ?? []
 
@@ -298,7 +343,7 @@ function EvaluatorDashboard() {
             {submitted.length > 0 && (
                 <SectionCard title="Sessions soumises — à corriger" icon={Award} iconColor="text-yellow-600">
                     <div className="space-y-2">
-                        {submitted.slice(0, 6).map((s: any) => (
+                        {submitted.slice(0, 6).map((s: ExamSession) => (
                             <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-yellow-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
@@ -317,7 +362,7 @@ function EvaluatorDashboard() {
             {dueProb.length > 0 && (
                 <SectionCard title="Probations à évaluer — J-14" icon={ClipboardList} iconColor="text-orange-600">
                     <div className="space-y-2">
-                        {dueProb.map((p: any) => (
+                        {dueProb.map((p: ProbationPeriod) => (
                             <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-orange-50">
                                 <div className="text-sm font-medium text-gray-900">{p.agent_detail?.matricule ?? `Agent #${p.agent}`}</div>
                                 <span className="text-xs text-red-600 font-bold">⚠️ J-14</span>
@@ -332,7 +377,7 @@ function EvaluatorDashboard() {
 
 // ─── 5. MENTOR ───────────────────────────────────────────────────────────────
 
-function MentorDashboard({ user }: { user: any }) {
+function MentorDashboard({ user }: { user: User | null }) {
     const { data: mentorings } = useQuery({
         queryKey: ['my-mentorings-mentor', user?.id],
         queryFn: () => mentoringApi.list().then(r => r.data),
@@ -340,11 +385,11 @@ function MentorDashboard({ user }: { user: any }) {
     })
 
     const allMent = mentorings?.results ?? []
-    const myMentoring = allMent.filter((m: any) => m.mentor === user?.id)
-    const active = myMentoring.filter((m: any) => !['COMPLETED', 'REJECTED'].includes(m.mentoring_status))
-    const drafts = myMentoring.filter((m: any) => m.mentoring_status === 'DRAFT')
-    const submitted = myMentoring.filter((m: any) => m.mentoring_status === 'SUBMITTED')
-    const completed = myMentoring.filter((m: any) => m.mentoring_status === 'COMPLETED')
+    const myMentoring = allMent.filter((m: MentoringRecord) => m.mentor === user?.id)
+    const active = myMentoring.filter((m: MentoringRecord) => !['COMPLETED', 'REJECTED'].includes(m.mentoring_status))
+    const drafts = myMentoring.filter((m: MentoringRecord) => m.mentoring_status === 'DRAFT')
+    const submitted = myMentoring.filter((m: MentoringRecord) => m.mentoring_status === 'SUBMITTED')
+    const completed = myMentoring.filter((m: MentoringRecord) => m.mentoring_status === 'COMPLETED')
 
     return (
         <div className="space-y-5">
@@ -358,7 +403,7 @@ function MentorDashboard({ user }: { user: any }) {
             {drafts.length > 0 && (
                 <SectionCard title="Fiches en brouillon — à soumettre" icon={FileText} iconColor="text-gray-500">
                     <div className="space-y-2">
-                        {drafts.map((m: any) => (
+                        {drafts.map((m: MentoringRecord) => (
                             <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
@@ -376,10 +421,10 @@ function MentorDashboard({ user }: { user: any }) {
                 </SectionCard>
             )}
 
-            {active.filter((m: any) => m.mentoring_status === 'APPROVED').length > 0 && (
+            {active.filter((m: MentoringRecord) => m.mentoring_status === 'APPROVED').length > 0 && (
                 <SectionCard title="Mes mentorats actifs" icon={BookOpen} iconColor="text-blue-600">
                     <div className="space-y-2">
-                        {active.filter((m: any) => m.mentoring_status === 'APPROVED').slice(0, 5).map((m: any) => (
+                        {active.filter((m: MentoringRecord) => m.mentoring_status === 'APPROVED').slice(0, 5).map((m: MentoringRecord) => (
                             <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-blue-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
@@ -411,7 +456,7 @@ function InstructorDashboard() {
 
     const allTrainings = trainings?.results ?? []
     const allInternships = internships?.results ?? []
-    const activeIntern = allInternships.filter((i: any) => !i.is_passed)
+    const activeIntern = allInternships.filter((i: Internship) => !i.is_passed)
 
     return (
         <div className="space-y-5">
@@ -424,7 +469,7 @@ function InstructorDashboard() {
             {allTrainings.length > 0 && (
                 <SectionCard title="Formations disponibles" icon={GraduationCap} iconColor="text-violet-600">
                     <div className="space-y-2">
-                        {allTrainings.slice(0, 6).map((t: any) => (
+                        {allTrainings.slice(0, 6).map((t: Training) => (
                             <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-violet-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">{t.title}</div>
@@ -444,7 +489,7 @@ function InstructorDashboard() {
             {activeIntern.length > 0 && (
                 <SectionCard title="Stages en cours" icon={BookCheck} iconColor="text-orange-600">
                     <div className="space-y-2">
-                        {activeIntern.slice(0, 5).map((i: any) => (
+                        {activeIntern.slice(0, 5).map((i: Internship) => (
                             <div key={i.id} className="flex items-center justify-between p-3 rounded-lg bg-orange-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
@@ -465,7 +510,7 @@ function InstructorDashboard() {
 
 // ─── 7. AGENT standard ───────────────────────────────────────────────────────
 
-function AgentDashboard({ user }: { user: any }) {
+function AgentDashboard({ user }: { user: User | null }) {
     const userId = user?.id
 
     const { data: probData } = useQuery({ queryKey: ['my-prob', userId], queryFn: () => probationApi.list().then(r => r.data), enabled: !!userId })
@@ -473,8 +518,8 @@ function AgentDashboard({ user }: { user: any }) {
     const { data: arcepData } = useQuery({ queryKey: ['my-arcep'], queryFn: () => arcepApi.books().then(r => r.data) })
     const { data: evalData } = useQuery({ queryKey: ['my-sess', userId], queryFn: () => evaluationsApi.sessions().then(r => r.data), enabled: !!userId })
 
-    const myProbs = (probData?.results ?? []).filter((p: any) => p.agent === userId)
-    const myMents = (mentData?.results ?? []).filter((m: any) => m.agent === userId)
+    const myProbs = (probData?.results ?? []).filter((p: ProbationPeriod) => p.agent === userId)
+    const myMents = (mentData?.results ?? []).filter((m: MentoringRecord) => m.agent === userId)
     const myBooks = arcepData?.results ?? []
     const mySessions = evalData?.results ?? []
     const lastProb = myProbs[0]
@@ -555,7 +600,7 @@ function AgentDashboard({ user }: { user: any }) {
 
 type RoleKey = 'admin' | 'unit_chief' | 'approver' | 'evaluator' | 'mentor' | 'instructor' | 'agent'
 
-function detectRole(user: any): RoleKey {
+function detectRole(user: User | null): RoleKey {
     const roles: string[] = user?.roles ?? []
     if (user?.is_superuser || user?.is_admin || roles.includes('ADMIN')) return 'admin'
     if (roles.includes('UNIT_CHIEF')) return 'unit_chief'

@@ -32,6 +32,20 @@ export interface User {
     /** URL de la photo de profil si présente */
     photo?: string | null
     date_joined?: string
+    /**
+     * Alias servis par `UserSerializer` pour la liste des agents : la page
+     * navigue vers /agents/<user> et lit l'identité dans `user_detail`.
+     */
+    user?: number
+    user_detail?: {
+        id: number
+        matricule: string
+        first_name: string
+        last_name: string
+        full_name: string
+        email: string
+    }
+    specialty_detail?: Specialty | null
 }
 
 export interface AuthTokens {
@@ -154,6 +168,7 @@ export interface MentoringRecord {
     mentor: number
     mentor_detail?: User
     unit_chief?: number
+    unit_chief_detail?: User | null
     start_date: string
     end_date: string | null
     objectives: string
@@ -202,6 +217,7 @@ export interface Report {
     submitted_at: string | null
     approved_at: string | null
     created_at: string
+    created_by_detail?: { id: number; full_name?: string; first_name?: string; last_name?: string } | null
 }
 
 export interface ARCEPBook {
@@ -211,6 +227,8 @@ export interface ARCEPBook {
     opened_at: string
     is_active: boolean
     entries?: ARCEPEntry[]
+    /** Total d'heures du carnet, calcule par le serializer. */
+    total_hours?: string | number
 }
 
 export interface ARCEPEntry {
@@ -266,4 +284,319 @@ export interface PaginatedResponse<T> {
     next: string | null
     previous: string | null
     results: T[]
+}
+
+// ─── Evaluations ──────────────────────────────────────────────────────────────
+
+export type QuestionType = 'GENERAL' | 'TECHNICAL' | 'UNIT_SPECIFIC'
+export type QuestionKind = 'MCQ' | 'TF' | 'OPEN'
+
+export const QuestionTypeLabels: Record<QuestionType, string> = {
+    GENERAL: 'Généralités',
+    TECHNICAL: 'Technique',
+    UNIT_SPECIFIC: "Spécifique à l'unité",
+}
+
+export const QuestionKindLabels: Record<QuestionKind, string> = {
+    MCQ: 'QCM',
+    TF: 'Vrai / Faux',
+    OPEN: 'Réponse ouverte',
+}
+
+export interface Question {
+    id: number
+    training?: number | null
+    question_type: QuestionType
+    question_kind: QuestionKind
+    text: string
+    difficulty: number
+    /** Absent de la version servie au candidat pendant la composition. */
+    correct_answer?: string
+    options: string[]
+    points: number
+    created_by_name?: string | null
+    is_active?: boolean
+}
+
+export type ExamStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED'
+
+export const ExamStatusLabels: Record<ExamStatus, string> = {
+    DRAFT: 'Brouillon',
+    PUBLISHED: 'Publié',
+    CLOSED: 'Fermé',
+}
+
+export const ExamStatusColors: Record<ExamStatus, string> = {
+    DRAFT: 'bg-gray-100 text-gray-700',
+    PUBLISHED: 'bg-green-100 text-green-700',
+    CLOSED: 'bg-red-100 text-red-700',
+}
+
+export interface Exam {
+    id: number
+    title: string
+    training: number | null
+    training_detail?: { id: number; title: string } | null
+    questions?: number[]
+    questions_count?: number
+    duration_minutes: number
+    passing_score: number
+    exam_status: ExamStatus
+    created_by_name?: string | null
+    created_at?: string
+}
+
+export type SessionStatus =
+    | 'IN_PROGRESS' | 'SUBMITTED' | 'CORRECTING'
+    | 'PENDING_APPROVAL' | 'GRADED' | 'REJECTED'
+
+export const SessionStatusLabels: Record<SessionStatus, string> = {
+    IN_PROGRESS: 'En cours',
+    SUBMITTED: 'Soumise — à corriger',
+    CORRECTING: 'En correction',
+    PENDING_APPROVAL: 'Correction à valider',
+    GRADED: 'Corrigée et validée',
+    REJECTED: 'Correction rejetée',
+}
+
+export const SessionStatusColors: Record<SessionStatus, string> = {
+    IN_PROGRESS: 'bg-gray-100 text-gray-700',
+    SUBMITTED: 'bg-amber-100 text-amber-700',
+    CORRECTING: 'bg-blue-100 text-blue-700',
+    PENDING_APPROVAL: 'bg-purple-100 text-purple-700',
+    GRADED: 'bg-green-100 text-green-700',
+    REJECTED: 'bg-red-100 text-red-700',
+}
+
+export interface ExamSession {
+    id: number
+    exam: number
+    exam_detail?: { id: number; title: string; passing_score: number } | null
+    agent: number
+    agent_detail?: {
+        id: number; matricule: string; first_name: string; last_name: string
+    } | null
+    session_status: SessionStatus
+    score: string | number | null
+    is_passed: boolean | null
+    started_at?: string
+    submitted_at?: string | null
+    graded_at?: string | null
+    approved_at?: string | null
+    graded_by_detail?: { id: number; first_name: string; last_name: string } | null
+    approved_by_detail?: { id: number; first_name: string; last_name: string } | null
+    rejection_reason?: string
+    /** Avancement de la correction, calculé côté serveur. */
+    answers_count?: number
+    corrected_count?: number
+    pending_correction_count?: number
+}
+
+export interface Answer {
+    id: number
+    session: number
+    question: number
+    question_detail?: {
+        id: number
+        text: string
+        question_type: QuestionType
+        points: number
+        /** Ajouté uniquement pour les profils habilités à corriger. */
+        correct_answer?: string
+        question_kind?: QuestionKind
+        options?: string[]
+    } | null
+    response: string
+    evaluator_score: string | number | null
+    is_correct: boolean | null
+    feedback: string
+    corrected_by_detail?: { id: number; first_name: string; last_name: string } | null
+    corrected_at?: string | null
+}
+
+/** Réponse de `GET /evaluations/sessions/{id}/answers/`. */
+export interface SessionAnswers {
+    count: number
+    results: Answer[]
+    /** Questions de l'examen restées sans réponse : elles comptent pour 0. */
+    unanswered: Question[]
+    session_status: SessionStatus
+    pending_correction: number
+}
+
+// ─── Formations ───────────────────────────────────────────────────────────────
+
+export interface Course {
+    id: number
+    training: number
+    training_detail?: { id: number; title: string } | null
+    instructor: number | null
+    instructor_name?: string | null
+    title: string
+    content: string
+    order: number
+    is_published: boolean
+    created_at?: string
+}
+
+// ─── Fiche agent ──────────────────────────────────────────────────────────────
+
+export interface AgentSkill {
+    id: number
+    agent: number
+    name: string
+    level: number
+    acquired_at: string | null
+    notes: string
+}
+
+export interface AgentCertification {
+    id: number
+    agent: number
+    name: string
+    issuing_body: string
+    issue_date: string
+    expiry_date: string | null
+}
+
+export interface PerformanceIndicator {
+    id: number
+    agent: number
+    year: number
+    score: string | number
+    evaluator: number | null
+    comments: string
+}
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+export interface LoginHistory {
+    id: number
+    user: number | null
+    matricule_attempted: string
+    result: 'SUCCESS' | 'FAILURE'
+    ip_address: string | null
+    user_agent: string
+    timestamp: string
+}
+
+/** Rôles fonctionnels, dans l'ordre d'habilitation décroissant. */
+export const FUNCTIONAL_ROLES = [
+    'ADMIN', 'UNIT_CHIEF', 'APPROVER', 'EVALUATOR',
+    'MENTOR', 'INSTRUCTOR',
+] as const
+
+export type FunctionalRole = (typeof FUNCTIONAL_ROLES)[number]
+
+export const FunctionalRoleLabels: Record<FunctionalRole, string> = {
+    ADMIN: 'Administrateur',
+    UNIT_CHIEF: "Chef d'unité",
+    APPROVER: 'Approbateur',
+    EVALUATOR: 'Évaluateur',
+    MENTOR: 'Mentor',
+    INSTRUCTOR: 'Instructeur',
+}
+
+
+// ─── Stages et maintien de qualification ──────────────────────────────────────
+
+export interface Internship {
+    id: number
+    agent: number
+    agent_detail?: {
+        id: number
+        matricule?: string
+        full_name?: string
+        first_name?: string
+        last_name?: string
+    } | null
+    training: number
+    training_detail?: { id: number; title: string } | null
+    internship_type?: string
+    start_date: string
+    end_date: string
+    score?: string | number | null
+    is_passed?: boolean | null
+}
+
+export type MaintenanceStatus = 'PENDING' | 'PASSED' | 'FAILED' | 'WAIVED'
+
+export const MaintenanceStatusLabels: Record<MaintenanceStatus, string> = {
+    PENDING: 'En attente',
+    PASSED: 'Réussi',
+    FAILED: 'Échoué',
+    WAIVED: 'Dispensé',
+}
+
+export interface QualificationMaintenance {
+    id: number
+    agent: number
+    agent_detail?: {
+        id: number
+        matricule?: string
+        full_name?: string
+        first_name?: string
+        last_name?: string
+    } | null
+    training: number
+    training_detail?: { id: number; title: string } | null
+    maintenance_status: MaintenanceStatus
+    due_date: string
+    score?: string | number | null
+    notes?: string
+    evaluated_at?: string | null
+}
+
+
+// ─── Registre d'approbation ───────────────────────────────────────────────────
+
+export type WorkflowStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
+
+export const WorkflowStatusLabels: Record<WorkflowStatus, string> = {
+    DRAFT: 'Brouillon',
+    SUBMITTED: 'En attente de décision',
+    APPROVED: 'Approuvé',
+    REJECTED: 'Rejeté',
+}
+
+export const WorkflowStatusColors: Record<WorkflowStatus, string> = {
+    DRAFT: 'bg-gray-100 text-gray-700',
+    SUBMITTED: 'bg-amber-100 text-amber-700',
+    APPROVED: 'bg-green-100 text-green-700',
+    REJECTED: 'bg-red-100 text-red-700',
+}
+
+/** Modules raccordés au registre, tels que le backend les nomme. */
+export type WorkflowModule = 'report' | 'mentoringrecord' | 'examsession'
+
+/** Objet soumis à décision, joint par le serializer. */
+export interface WorkflowTarget {
+    id: number
+    label: string
+    agent: { id: number; matricule: string; full_name: string } | null
+    /** Chemin frontend vers l'objet, ou null s'il a été supprimé. */
+    route: string | null
+    deleted: boolean
+}
+
+export interface ApprovalWorkflow {
+    id: number
+    content_type: number
+    object_id: number
+    workflow_status: WorkflowStatus
+    module: WorkflowModule | string | null
+    module_label: string | null
+    target: WorkflowTarget | null
+    submitted_by: number | null
+    submitted_by_name: string | null
+    approver: number | null
+    approver_name: string | null
+    unit_chief: number | null
+    unit_chief_name: string | null
+    approver_comment: string
+    unit_chief_comment: string
+    submitted_at: string | null
+    approved_at: string | null
+    rejected_at: string | null
+    created_at: string
 }

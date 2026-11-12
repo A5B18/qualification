@@ -63,10 +63,23 @@ class CourseViewSet(viewsets.ModelViewSet):
         if user.is_admin or user.has_role('INSTRUCTOR'):
             # L'instructeur voit ses propres cours publiés et non publiés
             if user.has_role('INSTRUCTOR') and not user.is_admin:
-                return Course.objects.filter(instructor=user).order_by('training', 'order')
-            return Course.objects.all().order_by('training', 'order')
-        # Autres agents : uniquement les cours publiés
-        return Course.objects.filter(is_published=True).order_by('training', 'order')
+                qs = Course.objects.filter(instructor=user)
+            else:
+                qs = Course.objects.all()
+        else:
+            # Autres agents : uniquement les cours publiés
+            qs = Course.objects.filter(is_published=True)
+
+        qs = qs.select_related('training', 'instructor')
+        training_id = self.request.query_params.get('training')
+        if training_id:
+            qs = qs.filter(training_id=training_id)
+        is_published = self.request.query_params.get('is_published')
+        if is_published in ('true', 'True', '1'):
+            qs = qs.filter(is_published=True)
+        elif is_published in ('false', 'False', '0'):
+            qs = qs.filter(is_published=False)
+        return qs.order_by('training', 'order', 'id')
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):

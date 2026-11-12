@@ -709,37 +709,77 @@ class Command(BaseCommand):
                 self.ok(f'Rapport {kind} [{status}] — {p[who].matricule}')
 
     def seed_workflows(self, p):
-        """Workflows génériques rattachés à des objets réels (GenericForeignKey)."""
-        ct_report = ContentType.objects.get_for_model(Report)
-        ct_mentoring = ContentType.objects.get_for_model(MentoringRecord)
+        """
+        Registre d'approbation, déduit de l'état réel des objets métier.
 
-        targets = []
-        for report in Report.objects.all()[:2]:
-            targets.append((ct_report, report.id,
-                            ApprovalWorkflow.WorkflowStatus.SUBMITTED))
-        for rec in MentoringRecord.objects.all()[:2]:
-            targets.append((ct_mentoring, rec.id,
-                            ApprovalWorkflow.WorkflowStatus.APPROVED))
-        if Report.objects.count() > 2:
-            r = Report.objects.all()[2]
-            targets.append((ct_report, r.id, ApprovalWorkflow.WorkflowStatus.REJECTED))
+        Il était auparavant rempli à part, sur un sous-ensemble arbitraire
+        d'objets : la liste « en attente » de l'approbateur ne correspondait pas
+        à ce qui attendait vraiment une décision. Depuis que les modules
+        alimentent le registre (`apps.workflows.services`), le jeu de démonstration
+        se contente de rejouer leurs transitions — ce que ferait l'application.
+        """
+        from apps.evaluations.models import ExamSession
+        from apps.workflows import services as workflows
 
-        for ct, oid, status in targets:
-            obj, created = ApprovalWorkflow.objects.get_or_create(
-                content_type=ct, object_id=oid,
-                defaults={
-                    'submitted_by': p['chef_cns'],
-                    'approver': p['approbateur'],
-                    'unit_chief': p['chef_cns'],
-                    'workflow_status': status,
-                    'approver_comment': 'Traité par l\'approbateur.' if status != 'SUBMITTED' else '',
-                    'submitted_at': timezone.now(),
-                    'approved_at': timezone.now() if status == 'APPROVED' else None,
-                    'rejected_at': timezone.now() if status == 'REJECTED' else None,
-                },
+        compte = 0
+
+        # ── Rapports : décidés par l'approbateur ─────────────────────────────
+        for report in Report.objects.exclude(report_status='DRAFT'):
+            workflows.record_submission(report, submitted_by=report.created_by)
+            if report.report_status == 'APPROVED':
+                workflows.record_approval(
+                    report, approver=report.approver or p['approbateur'],
+                    comment=report.approver_opinion,
+                )
+            elif report.report_status == 'REJECTED':
+                workflows.record_rejection(
+                    report, approver=report.approver or p['approbateur'],
+                    reason=report.approver_opinion,
+                )
+            compte += 1
+
+        # ── Fiches de mentorat : décidées par le chef d'unité ────────────────
+        for record in MentoringRecord.objects.exclude(mentoring_status='DRAFT'):
+            workflows.record_submission(
+                record, submitted_by=record.mentor,
+                unit_chief=record.unit_chief or p['chef_cns'],
             )
-            if created:
-                self.ok(f'Workflow {ct.model}#{oid} [{status}]')
+            if record.mentoring_status in ('APPROVED', 'COMPLETED'):
+                workflows.record_approval(
+                    record, approver=record.unit_chief or p['chef_cns'],
+                    comment=record.unit_chief_opinion, as_unit_chief=True,
+                )
+            elif record.mentoring_status == 'REJECTED':
+                workflows.record_rejection(
+                    record, approver=record.unit_chief or p['chef_cns'],
+                    reason=record.unit_chief_opinion, as_unit_chief=True,
+                )
+            compte += 1
+
+        # ── Corrections d'examen : validées par le chef d'unité ──────────────
+        for session in ExamSession.objects.filter(
+            session_status__in=('PENDING_APPROVAL', 'GRADED', 'REJECTED'),
+        ):
+            workflows.record_submission(
+                session, submitted_by=session.graded_by or p['evaluateur'],
+            )
+            if session.session_status == 'GRADED':
+                workflows.record_approval(
+                    session, approver=session.approved_by or p['chef_cns'],
+                    as_unit_chief=True,
+                )
+            elif session.session_status == 'REJECTED':
+                workflows.record_rejection(
+                    session, approver=session.approved_by or p['chef_cns'],
+                    reason=session.rejection_reason, as_unit_chief=True,
+                )
+            compte += 1
+
+        en_attente = ApprovalWorkflow.objects.filter(
+            workflow_status=ApprovalWorkflow.WorkflowStatus.SUBMITTED,
+        ).count()
+        self.ok(f'Registre d\'approbation : {compte} entrée(s), '
+                f'dont {en_attente} en attente de décision')
 
     def seed_agent_extras(self, p):
         competences = [

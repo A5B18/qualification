@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { trainingApi } from '../../api'
 import { ShieldCheck, AlertTriangle, Clock, CheckCircle, XCircle, MinusCircle } from 'lucide-react'
 import { useState } from 'react'
+import type { QualificationMaintenance } from '../../types'
 
 const STATUS_LABELS: Record<string, string> = {
     PENDING: 'En attente',
@@ -41,8 +42,8 @@ export default function QualificationMaintenancePage() {
 
     const maintenances = maintData?.results ?? []
     const overdue = overdueData?.results ?? []
-    const pending = maintenances.filter((m: any) => m.maintenance_status === 'PENDING')
-    const passed = maintenances.filter((m: any) => m.maintenance_status === 'PASSED')
+    const pending = maintenances.filter((m: QualificationMaintenance) => m.maintenance_status === 'PENDING')
+    const passed = maintenances.filter((m: QualificationMaintenance) => m.maintenance_status === 'PASSED')
 
     const finalizeMut = useMutation({
         mutationFn: ({ id, score, notes }: { id: number; score: number; notes: string }) =>
@@ -112,7 +113,7 @@ export default function QualificationMaintenancePage() {
                         Contrôles en retard ({overdue.length})
                     </h2>
                     <div className="space-y-2">
-                        {overdue.map((m: any) => (
+                        {overdue.map((m: QualificationMaintenance) => (
                             <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-100">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
@@ -219,7 +220,7 @@ export default function QualificationMaintenancePage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {maintenances.map((m: any) => {
+                            {maintenances.map((m: QualificationMaintenance) => {
                                 const daysLeft = getDaysUntil(m.due_date)
                                 const st = m.maintenance_status as string
                                 const isPending = st === 'PENDING'

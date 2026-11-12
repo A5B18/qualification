@@ -22,17 +22,46 @@ class ApprovalWorkflowViewSet(viewsets.ModelViewSet):
     """
     CRUD + actions du pipeline d'approbation.
 
+    Registre transversal des decisions : une ligne par objet soumis, quel que
+    soit son module d'origine. Alimente par `apps.workflows.services`, appele
+    par les rapports, les fiches de mentorat et les corrections d'examen.
+
+    Chaque module garde sa propre machine a etats ; ce registre sert a voir au
+    meme endroit tout ce qui attend une decision, et a retracer qui a decide
+    quoi.
+
     Filtres disponibles (query params) :
       ?workflow_status=DRAFT|SUBMITTED|APPROVED|REJECTED
+      ?module=report|mentoringrecord|examsession
       ?content_type=<id>
       ?object_id=<id>
+
+    Un agent sans role de decision ne voit que ses propres soumissions.
     """
     serializer_class = ApprovalWorkflowSerializer
+    # Jamais consulte a l'execution (get_queryset ci-dessous le remplace) ;
+    # present pour que drf-spectacular type le parametre de chemin `id` en
+    # entier. Depuis que get_queryset() lit `request.user` pour cloisonner, il
+    # echoue hors requete, et le schema declarait `id` comme une chaine.
+    queryset = ApprovalWorkflow.objects.none()
 
     def get_queryset(self):
-        qs = ApprovalWorkflow.objects.all().select_related(
+        user = self.request.user
+        qs = ApprovalWorkflow.objects.select_related(
             'submitted_by', 'approver', 'unit_chief', 'content_type'
-        ).order_by('-created_at')
+        # `content_object` est une cle generique : sans ce prefetch, le
+        # serializer declenche une requete par ligne pour resoudre l'objet.
+        ).prefetch_related('content_object').order_by('-created_at')
+
+        # Cloisonnement. Le registre servait l'integralite de la table a tout
+        # utilisateur authentifie : un agent y lisait les soumissions de ses
+        # collegues. Tant qu'il n'etait alimente que par `seed_demo` la fuite
+        # restait theorique ; elle ne l'est plus une fois les modules
+        # raccordes.
+        if not (user.is_admin
+                or user.has_role('APPROVER')
+                or user.has_role('UNIT_CHIEF')):
+            qs = qs.filter(submitted_by=user)
 
         # Filtres optionnels
         wf_status = self.request.query_params.get('workflow_status')
@@ -46,6 +75,13 @@ class ApprovalWorkflowViewSet(viewsets.ModelViewSet):
         obj_id = self.request.query_params.get('object_id')
         if obj_id:
             qs = qs.filter(object_id=obj_id)
+
+        # `?module=report|mentoringrecord|examsession` : l'ecran d'approbation
+        # filtre par type d'objet sans avoir a connaitre les identifiants de
+        # ContentType.
+        module = self.request.query_params.get('module')
+        if module:
+            qs = qs.filter(content_type__model=module)
 
         return qs
 
@@ -158,9 +194,16 @@ class ApprovalWorkflowViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        pending_qs = ApprovalWorkflow.objects.filter(
-            workflow_status=ApprovalWorkflow.WorkflowStatus.SUBMITTED
-        ).select_related('submitted_by', 'content_type').order_by('submitted_at')
+        pending_qs = (ApprovalWorkflow.objects
+                      .filter(workflow_status=ApprovalWorkflow.WorkflowStatus.SUBMITTED)
+                      .select_related('submitted_by', 'approver', 'unit_chief',
+                                      'content_type')
+                      .prefetch_related('content_object')
+                      .order_by('submitted_at'))
+
+        module = request.query_params.get('module')
+        if module:
+            pending_qs = pending_qs.filter(content_type__model=module)
 
         serializer = ApprovalWorkflowSerializer(pending_qs, many=True)
         return Response({'count': pending_qs.count(), 'results': serializer.data})

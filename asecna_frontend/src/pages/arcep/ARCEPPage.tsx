@@ -7,8 +7,10 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { apiErrorMessage } from '../../api/client'
+import type { User, ARCEPBook } from '../../types'
+import type { ARCEPEntry } from '../../types'
 
-function canSign(user: any) {
+function canSign(user: User | null) {
     const r: string[] = user?.roles ?? []
     return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF')
 }
@@ -32,10 +34,10 @@ export default function ARCEPPage() {
         queryFn: () => arcepApi.books().then(r => r.data),
     })
     const books = booksData?.results ?? []
-    const totalHoursAll = books.reduce((s: number, b: any) => s + Number(b.total_hours ?? 0), 0)
+    const totalHoursAll = books.reduce((s: number, b: ARCEPBook) => s + Number(b.total_hours ?? 0), 0)
 
     const createEntryMut = useMutation({
-        mutationFn: (data: any) => arcepApi.createEntry(data),
+        mutationFn: (data: Record<string, unknown>) => arcepApi.createEntry(data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['arcep-books'] })
             qc.invalidateQueries({ queryKey: ['arcep-entries'] })
@@ -86,7 +88,7 @@ export default function ARCEPPage() {
                 </div>
                 <div className="card text-center py-4">
                     <div className="text-3xl font-bold text-purple-600">
-                        {books.filter((b: any) => b.is_active).length}
+                        {books.filter((b: ARCEPBook) => b.is_active).length}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">Actifs</div>
                 </div>
@@ -104,7 +106,7 @@ export default function ARCEPPage() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {books.map((book: any) => (
+                    {books.map((book: ARCEPBook) => (
                         <ARCEPBookRow
                             key={book.id}
                             book={book}
@@ -196,7 +198,7 @@ export default function ARCEPPage() {
 }
 
 function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, isOwnBook }: {
-    book: any; expanded: boolean
+    book: ARCEPBook; expanded: boolean
     onToggle: () => void; onAddEntry: () => void; onSign: () => void
     canSign: boolean; isOwnBook: boolean
 }) {
@@ -206,7 +208,7 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
         enabled: expanded,
     })
     const entries = entriesData?.results ?? []
-    const totalH = entries.reduce((s: number, e: any) => s + Number(e.duration_hours), 0)
+    const totalH = entries.reduce((s: number, e: ARCEPEntry) => s + Number(e.duration_hours), 0)
 
     return (
         <div className="card p-0 overflow-hidden">
@@ -259,7 +261,7 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
                             <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-3">
                                 {entries.length} entrée(s) — {totalH}h total
                             </div>
-                            {entries.map((entry: any) => (
+                            {entries.map((entry: ARCEPEntry) => (
                                 <div key={entry.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-xl">
                                     <div>
                                         <div className="text-sm font-medium text-gray-900">{entry.activity}</div>

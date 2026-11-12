@@ -36,6 +36,9 @@ export const authApi = {
 
     me: () => api.get('/auth/me/'),
 
+    /** Blackliste le refresh token cote serveur. */
+    logout: (refresh: string) => api.post('/auth/logout/', { refresh }),
+
     updateMe: (data: FormData | unknown) => api.patch('/auth/me/', data, {
         headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : undefined
     }),
@@ -45,6 +48,37 @@ export const authApi = {
         api.get('/auth/users/', { params }),
 
     user: (id: number) => api.get(`/auth/users/${id}/`),
+
+    /** ADMIN : creer un compte agent */
+    createUser: (data: {
+        matricule: string; email: string; first_name: string
+        last_name: string; phone?: string; password: string
+    }) => api.post('/auth/users/', data),
+
+    /** ADMIN : modifier l'identite d'un compte */
+    updateUser: (id: number, data: unknown) => api.patch(`/auth/users/${id}/`, data),
+
+    /** ADMIN : desactivation (suppression douce, is_active=false) */
+    deactivateUser: (id: number) => api.delete(`/auth/users/${id}/`),
+
+    /** ADMIN : attribuer un role fonctionnel */
+    assignRole: (id: number, data: { role: string; notes?: string }) =>
+        api.post(`/auth/users/${id}/assign-role/`, data),
+
+    /** ADMIN : revoquer un role fonctionnel */
+    revokeRole: (id: number, role: string) =>
+        api.delete(`/auth/users/${id}/revoke-role/`, { data: { role } }),
+
+    /**
+     * ADMIN : reinitialiser le mot de passe.
+     * Le mot de passe temporaire part par courriel ; il n'est renvoye dans la
+     * reponse que si l'envoi n'a pas abouti (`delivered_by_email: false`).
+     */
+    resetPassword: (id: number) => api.post(`/auth/users/${id}/reset-password/`),
+
+    /** Changer son propre mot de passe */
+    changePassword: (data: { old_password: string; new_password: string }) =>
+        api.put('/auth/change-password/', data),
 }
 
 // Alias pour la compatibilité avec les pages agents
@@ -69,6 +103,13 @@ export const agentsApi = {
 
     performances: (params?: Record<string, string>) =>
         api.get('/agents/performances/', { params }),
+
+    createSkill: (data: unknown) => api.post('/agents/skills/', data),
+    deleteSkill: (id: number) => api.delete(`/agents/skills/${id}/`),
+    createCertification: (data: unknown) => api.post('/agents/certifications/', data),
+    deleteCertification: (id: number) => api.delete(`/agents/certifications/${id}/`),
+    /** EVALUATEUR uniquement : noter un agent sur une annee */
+    createPerformance: (data: unknown) => api.post('/agents/performances/', data),
 }
 
 export const unitsApi = {
@@ -153,6 +194,18 @@ export const trainingApi = {
         api.get('/training/trainings/', { params }),
     internships: (params?: Record<string, string>) =>
         api.get('/training/internships/', { params }),
+    /** ADMIN : inscrire un agent a un stage */
+    createInternship: (data: unknown) => api.post('/training/internships/', data),
+    /** Cours e-learning — l'agent ne recoit que les cours publies */
+    courses: (params?: Record<string, string>) =>
+        api.get('/training/courses/', { params }),
+    createCourse: (data: unknown) => api.post('/training/courses/', data),
+    updateCourse: (id: number, data: unknown) =>
+        api.patch(`/training/courses/${id}/`, data),
+    deleteCourse: (id: number) => api.delete(`/training/courses/${id}/`),
+    /** INSTRUCTEUR : rendre le cours visible des agents */
+    publishCourse: (id: number) => api.post(`/training/courses/${id}/publish/`),
+    unpublishCourse: (id: number) => api.post(`/training/courses/${id}/unpublish/`),
     /** Maintiens de qualification */
     maintenances: (params?: Record<string, string>) =>
         api.get('/training/maintenances/', { params }),
@@ -172,11 +225,33 @@ export const evaluationsApi = {
         api.get('/evaluations/exams/', { params }),
     create: (data: unknown) => api.post('/evaluations/exams/', data),
     exam: (id: number) => api.get(`/evaluations/exams/${id}/`),
+    /** Rattacher / detacher des questions : la relation est un ManyToMany */
+    updateExam: (id: number, data: unknown) =>
+        api.patch(`/evaluations/exams/${id}/`, data),
+    publishExam: (id: number) => api.post(`/evaluations/exams/${id}/publish/`),
+    unpublishExam: (id: number) => api.post(`/evaluations/exams/${id}/unpublish/`),
+    /** Enonces de l'examen — sans le corrige pour un agent */
+    examQuestions: (id: number) => api.get(`/evaluations/exams/${id}/questions/`),
+
+    /** Banque de questions */
+    questions: (params?: Record<string, string>) =>
+        api.get('/evaluations/questions/', { params }),
+    createQuestion: (data: unknown) => api.post('/evaluations/questions/', data),
+    updateQuestion: (id: number, data: unknown) =>
+        api.patch(`/evaluations/questions/${id}/`, data),
+    deleteQuestion: (id: number) => api.delete(`/evaluations/questions/${id}/`),
     startSession: (examId: number) =>
         api.post(`/evaluations/exams/${examId}/start-session/`),
     sessions: (params?: Record<string, string>) =>
         api.get('/evaluations/sessions/', { params }),
     session: (id: number) => api.get(`/evaluations/sessions/${id}/`),
+    /**
+     * Copie de l'agent : une entree par reponse, avec son bareme, sa
+     * correction eventuelle et — pour un correcteur — la reponse attendue.
+     * Renvoie aussi `unanswered`, les questions laissees vides (elles comptent
+     * pour 0 dans le score).
+     */
+    sessionAnswers: (id: number) => api.get(`/evaluations/sessions/${id}/answers/`),
     /** Agent soumet une réponse */
     submitAnswer: (sessionId: number, data: { question: number; response: string }) =>
         api.post(`/evaluations/sessions/${sessionId}/submit-answer/`, data),
@@ -197,6 +272,23 @@ export const evaluationsApi = {
     /** UNIT_CHIEF : rejeter avec motif obligatoire */
     rejectSession: (sessionId: number, data: { reason: string }) =>
         api.post(`/evaluations/sessions/${sessionId}/reject/`, data),
+}
+
+export const workflowsApi = {
+    /**
+     * Registre transversal des approbations : une ligne par objet soumis,
+     * tous modules confondus (rapports, mentorats, corrections d'examen).
+     */
+    list: (params?: Record<string, string>) =>
+        api.get('/workflows/', { params }),
+    /** Ce qui attend une décision — réservé aux décideurs */
+    pending: (params?: Record<string, string>) =>
+        api.get('/workflows/pending/', { params }),
+    approve: (id: number, data?: { approver_comment?: string; unit_chief_comment?: string }) =>
+        api.post(`/workflows/${id}/approve/`, data ?? {}),
+    /** Le motif est obligatoire côté serveur */
+    reject: (id: number, data: { approver_comment: string }) =>
+        api.post(`/workflows/${id}/reject/`, data),
 }
 
 export const auditApi = {

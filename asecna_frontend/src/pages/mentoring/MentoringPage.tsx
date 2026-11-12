@@ -9,10 +9,11 @@ import { mentoringApi } from '../../api'
 import { useAuth } from '../../store/authContextValue'
 import {
     MentoringStatusLabels, MentoringStatusColors,
-    type MentoringStatus, type MentoringRecord,
+    type MentoringStatus, type MentoringRecord, type User,
 } from '../../types'
+import { apiErrorMessage } from '../../api/client'
 
-function canApprove(user: any): boolean {
+function canApprove(user: User | null): boolean {
     const r: string[] = user?.roles ?? []
     return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF') || r.includes('APPROVER')
 }
@@ -75,7 +76,7 @@ export default function MentoringPage() {
             setDetailId(null)
             notify('✅ Fiche de mentorat approuvée')
         },
-        onError: (e: any) => notify(e?.response?.data?.error?.message || '❌ Erreur', false),
+        onError: (e: unknown) => notify(apiErrorMessage(e, '❌ Erreur'), false),
     })
 
     const rejectMut = useMutation({
@@ -88,11 +89,11 @@ export default function MentoringPage() {
             setRejectOpinion('')
             notify('Fiche rejetée — le mentor doit la corriger')
         },
-        onError: (e: any) => notify(e?.response?.data?.error?.message || '❌ Erreur', false),
+        onError: (e: unknown) => notify(apiErrorMessage(e, '❌ Erreur'), false),
     })
 
     const submitMut = useMutation({
-        mutationFn: ({ id, data }: { id: number; data: any }) =>
+        mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
             mentoringApi.submit(id, data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['mentorings'] })
@@ -100,7 +101,7 @@ export default function MentoringPage() {
             setDetailId(null)
             notify('📤 Fiche soumise au chef d\'unité')
         },
-        onError: (e: any) => notify(e?.response?.data?.error?.message || '❌ Erreur', false),
+        onError: (e: unknown) => notify(apiErrorMessage(e, '❌ Erreur'), false),
     })
 
     const pending = all.filter(r => r.mentoring_status === 'SUBMITTED')
@@ -191,7 +192,7 @@ export default function MentoringPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {records.map((r: any) => {
+                            {records.map((r: MentoringRecord) => {
                                 const st = r.mentoring_status as MentoringStatus
                                 const isPending = st === 'SUBMITTED'
                                 return (
@@ -277,7 +278,7 @@ export default function MentoringPage() {
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900">Fiche de mentorat</h3>
                                 <p className="text-sm text-gray-400 mt-0.5">
-                                    {(selectedRecord as any).agent_detail?.matricule} — {(selectedRecord as any).agent_detail?.first_name} {(selectedRecord as any).agent_detail?.last_name}
+                                    {selectedRecord.agent_detail?.matricule} — {selectedRecord.agent_detail?.first_name} {selectedRecord.agent_detail?.last_name}
                                 </p>
                             </div>
                             <button onClick={() => setDetailId(null)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400">
@@ -297,13 +298,13 @@ export default function MentoringPage() {
                             <div>
                                 <p className="text-gray-400 text-xs mb-0.5">Mentor</p>
                                 <p className="font-medium text-gray-900">
-                                    {(selectedRecord as any).mentor_detail?.first_name} {(selectedRecord as any).mentor_detail?.last_name}
+                                    {selectedRecord.mentor_detail?.first_name} {selectedRecord.mentor_detail?.last_name}
                                 </p>
                             </div>
                             <div>
                                 <p className="text-gray-400 text-xs mb-0.5">Chef d'unité</p>
                                 <p className="font-medium text-gray-900">
-                                    {(selectedRecord as any).unit_chief_detail?.full_name ?? '—'}
+                                    {selectedRecord.unit_chief_detail?.full_name ?? '—'}
                                 </p>
                             </div>
                             <div>

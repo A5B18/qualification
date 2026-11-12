@@ -3,10 +3,11 @@ import { trainingApi, agentsApi } from '../../api'
 import { useAuth } from '../../store/authContextValue'
 import {
     GraduationCap, BookOpen, Plus, X, Users,
-    Clock, Target, BookCheck,
+    Clock, Target, BookCheck, FileText, Eye, EyeOff, Trash2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { apiErrorMessage } from '../../api/client'
+import type { User, Internship, Training, Course, Specialty } from '../../types'
 
 const TYPE_LABELS: Record<string, string> = {
     QUALIFYING: 'Qualification', CONTINUING: 'Formation continue',
@@ -17,18 +18,30 @@ const TYPE_COLORS: Record<string, string> = {
     REFRESHER: 'bg-orange-100 text-orange-700', INITIAL: 'bg-purple-100 text-purple-700',
 }
 
-function canCreate(user: any) {
+function canCreate(user: User | null) {
     const r: string[] = user?.roles ?? []
     return user?.is_superuser || r.includes('ADMIN') || r.includes('INSTRUCTOR') || r.includes('UNIT_CHIEF')
+}
+
+/**
+ * Seul un INSTRUCTEUR (ou un admin) dépose et publie un cours : c'est la
+ * règle de `CourseViewSet.get_permissions` côté serveur. Un chef d'unité
+ * recevrait un 403.
+ */
+function canManageCourses(user: User | null) {
+    const r: string[] = user?.roles ?? []
+    return Boolean(user?.is_superuser || user?.is_admin || r.includes('ADMIN') || r.includes('INSTRUCTOR'))
 }
 
 export default function TrainingPage() {
     const { user } = useAuth()
     const qc = useQueryClient()
-    const [activeTab, setActiveTab] = useState<'trainings' | 'internships'>('trainings')
+    const [activeTab, setActiveTab] = useState<'trainings' | 'courses' | 'internships'>('trainings')
     const [showCreateInternship, setShowCreateInternship] = useState(false)
+    const [showCreateCourse, setShowCreateCourse] = useState(false)
     const [flash, setFlash] = useState<{ text: string; ok: boolean } | null>(null)
     const [internForm, setInternForm] = useState({ agent: '', training: '', start_date: '', end_date: '' })
+    const [courseForm, setCourseForm] = useState({ title: '', training: '', content: '', order: 0 })
 
     const notify = (text: string, ok = true) => {
         setFlash({ text, ok })
@@ -52,20 +65,77 @@ export default function TrainingPage() {
         queryFn: () => agentsApi.list().then(r => r.data),
         enabled: showCreateInternship,
     })
+    // Cours e-learning. Le backend filtre déjà par rôle : un agent ne reçoit
+    // que les cours publiés, un instructeur voit aussi ses brouillons.
+    const { data: coursesData, isLoading: loadingC } = useQuery({
+        queryKey: ['courses'],
+        queryFn: () => trainingApi.courses().then(r => r.data),
+    })
 
+    const courses = coursesData?.results ?? []
     const specialties = specialtiesData?.results ?? []
     const trainings = trainingsData?.results ?? []
     const internships = internshipsData?.results ?? []
     const agents = agentsData?.results ?? []
 
-    const activeInternships = internships.filter((i: any) => !i.is_passed)
-    const passedInternships = internships.filter((i: any) => i.is_passed)
+    const activeInternships = internships.filter((i: Internship) => !i.is_passed)
+    const passedInternships = internships.filter((i: Internship) => i.is_passed)
+
+    const refreshCourses = () => qc.invalidateQueries({ queryKey: ['courses'] })
+
+    const handleCreateCourse = async (e: React.FormEvent) => {
+        e.preventDefault()
+        try {
+            // `instructor` est imposé côté serveur (utilisateur connecté) et
+            // `is_published` vaut false : un cours naît en brouillon.
+            await trainingApi.createCourse({
+                title: courseForm.title,
+                training: Number(courseForm.training),
+                content: courseForm.content,
+                order: Number(courseForm.order) || 0,
+            })
+            refreshCourses()
+            setShowCreateCourse(false)
+            setCourseForm({ title: '', training: '', content: '', order: 0 })
+            notify('Cours créé — il reste en brouillon tant qu\'il n\'est pas publié.')
+        } catch (err: unknown) {
+            notify(apiErrorMessage(err, 'Création du cours impossible.'), false)
+        }
+    }
+
+    const togglePublish = async (course: Course) => {
+        try {
+            if (course.is_published) {
+                await trainingApi.unpublishCourse(course.id)
+                notify('Cours dépublié — il disparaît de la vue des agents.')
+            } else {
+                await trainingApi.publishCourse(course.id)
+                notify('Cours publié — il est visible des agents.')
+            }
+            refreshCourses()
+        } catch (err: unknown) {
+            notify(apiErrorMessage(err, 'Opération impossible.'), false)
+        }
+    }
+
+    const removeCourse = async (course: Course) => {
+        try {
+            await trainingApi.deleteCourse(course.id)
+            refreshCourses()
+            notify('Cours supprimé.')
+        } catch (err: unknown) {
+            notify(apiErrorMessage(err, 'Suppression impossible.'), false)
+        }
+    }
 
     const handleCreateInternship = async (e: React.FormEvent) => {
         e.preventDefault()
         try {
-            const { default: api } = await import('../../api/client')
-            await api.post('/training/internships/', {
+            // L'import dynamique de `api/client` annulait le decoupage du
+            // bundle : le module est deja importe statiquement par ailleurs,
+            // Vite emettait un avertissement et gardait tout dans le meme
+            // morceau. On passe par la couche `api`, comme les autres ecrans.
+            await trainingApi.createInternship({
                 agent: Number(internForm.agent),
                 training: Number(internForm.training),
                 start_date: internForm.start_date,
@@ -75,7 +145,7 @@ export default function TrainingPage() {
             setShowCreateInternship(false)
             setInternForm({ agent: '', training: '', start_date: '', end_date: '' })
             notify('✅ Stage créé avec succès')
-        } catch (err: any) {
+        } catch (err: unknown) {
             notify(apiErrorMessage(err, '❌ Erreur'), false)
         }
     }
@@ -108,7 +178,7 @@ export default function TrainingPage() {
             {/* Spécialités */}
             {specialties.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                    {specialties.map((s: any) => (
+                    {specialties.map((s: Specialty) => (
                         <span key={s.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-asecna-50 border border-asecna-100 text-asecna-700 rounded-full text-sm">
                             <span className="font-bold font-mono text-xs">{s.code}</span>
                             <span>{s.name}</span>
@@ -133,7 +203,7 @@ export default function TrainingPage() {
                 </div>
                 <div className="card text-center py-4">
                     <div className="text-2xl font-bold text-gray-600">
-                        {trainings.filter((t: any) => t.training_type === 'QUALIFYING').length}
+                        {trainings.filter((t: Training) => t.training_type === 'QUALIFYING').length}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">Qualifiantes</div>
                 </div>
@@ -141,7 +211,11 @@ export default function TrainingPage() {
 
             {/* Tabs */}
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-                {([['trainings', 'Formations', BookOpen], ['internships', 'Stages', Users]] as const).map(([key, label, Icon]) => (
+                {([
+                    ['trainings', 'Formations', BookOpen],
+                    ['courses', 'Cours', FileText],
+                    ['internships', 'Stages', Users],
+                ] as const).map(([key, label, Icon]) => (
                     <button key={key} onClick={() => setActiveTab(key)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                         <Icon size={15} /> {label}
@@ -162,7 +236,7 @@ export default function TrainingPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {trainings.map((t: any) => (
+                        {trainings.map((t: Training) => (
                             <div key={t.id} className="card hover:shadow-md transition-shadow">
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="flex-1">
@@ -178,7 +252,7 @@ export default function TrainingPage() {
                                     <span className="flex items-center gap-1"><Clock size={11} /> {t.duration_days}j</span>
                                     <span className="flex items-center gap-1"><Target size={11} /> Seuil {t.passing_score}%</span>
                                     <span className="flex items-center gap-1"><BookCheck size={11} />
-                                        {internships.filter((i: any) => i.training === t.id).length} stagiaire(s)
+                                        {internships.filter((i: Internship) => i.training === t.id).length} stagiaire(s)
                                     </span>
                                     <span className={`ml-auto font-medium ${t.is_active ? 'text-green-600' : 'text-gray-400'}`}>
                                         {t.is_active ? '● Actif' : '○ Inactif'}
@@ -188,6 +262,112 @@ export default function TrainingPage() {
                         ))}
                     </div>
                 )
+            )}
+
+            {/* Onglet Cours */}
+            {activeTab === 'courses' && (
+                <div className="space-y-4">
+                    {canManageCourses(user) && (
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => setShowCreateCourse(v => !v)}
+                                className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-medium transition-colors"
+                            >
+                                {showCreateCourse ? <X size={16} /> : <Plus size={16} />}
+                                {showCreateCourse ? 'Annuler' : 'Nouveau cours'}
+                            </button>
+                        </div>
+                    )}
+
+                    {showCreateCourse && (
+                        <form onSubmit={handleCreateCourse} className="card space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Titre *</label>
+                                    <input
+                                        required value={courseForm.title}
+                                        onChange={e => setCourseForm(f => ({ ...f, title: e.target.value }))}
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                        placeholder="Ex : Phraséologie — module 1"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Formation *</label>
+                                    <select
+                                        required value={courseForm.training}
+                                        onChange={e => setCourseForm(f => ({ ...f, training: e.target.value }))}
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                    >
+                                        <option value="">— Choisir —</option>
+                                        {trainings.map((t: Training) => (
+                                            <option key={t.id} value={t.id}>{t.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Contenu *</label>
+                                <textarea
+                                    required rows={4} value={courseForm.content}
+                                    onChange={e => setCourseForm(f => ({ ...f, content: e.target.value }))}
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                />
+                            </div>
+                            <button type="submit" className="px-4 py-2 rounded-xl text-sm font-medium bg-violet-600 text-white hover:bg-violet-700">
+                                Créer le cours
+                            </button>
+                        </form>
+                    )}
+
+                    {loadingC ? (
+                        <div className="flex items-center justify-center h-40">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600" />
+                        </div>
+                    ) : courses.length === 0 ? (
+                        <div className="card text-center py-12 text-gray-400">
+                            <FileText size={40} className="mx-auto mb-2 opacity-30" />
+                            <p>Aucun cours disponible</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {courses.map((c: Course) => (
+                                <div key={c.id} className="card flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                                            <h3 className="font-semibold text-gray-900">{c.title}</h3>
+                                            <span className={`badge text-xs ${c.is_published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                {c.is_published ? 'Publié' : 'Brouillon'}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-400 mb-2">
+                                            {c.training_detail?.title ?? trainings.find((t: Training) => t.id === c.training)?.title ?? '—'}
+                                        </p>
+                                        <p className="text-sm text-gray-600 line-clamp-2 whitespace-pre-wrap">{c.content}</p>
+                                    </div>
+                                    {canManageCourses(user) && (
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                onClick={() => togglePublish(c)}
+                                                className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors ${c.is_published
+                                                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                    : 'bg-green-600 text-white hover:bg-green-700'}`}
+                                            >
+                                                {c.is_published ? <><EyeOff size={13} /> Dépublier</> : <><Eye size={13} /> Publier</>}
+                                            </button>
+                                            <button
+                                                onClick={() => removeCourse(c)}
+                                                title="Supprimer le cours"
+                                                className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* Onglet Stages */}
@@ -218,7 +398,7 @@ export default function TrainingPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {internships.map((i: any) => (
+                                {internships.map((i: Internship) => (
                                     <tr key={i.id} className="hover:bg-gray-50">
                                         <td className="px-5 py-3.5">
                                             <div className="font-medium text-gray-900">{i.agent_detail?.first_name} {i.agent_detail?.last_name}</div>
@@ -256,7 +436,7 @@ export default function TrainingPage() {
                                 <select required value={internForm.agent} onChange={e => setInternForm(f => ({ ...f, agent: e.target.value }))}
                                     className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
                                     <option value="">— Choisir un agent —</option>
-                                    {agents.map((a: any) => (
+                                    {agents.map((a: User) => (
                                         <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.matricule})</option>
                                     ))}
                                 </select>
@@ -266,7 +446,7 @@ export default function TrainingPage() {
                                 <select required value={internForm.training} onChange={e => setInternForm(f => ({ ...f, training: e.target.value }))}
                                     className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
                                     <option value="">— Choisir une formation —</option>
-                                    {trainings.map((t: any) => (
+                                    {trainings.map((t: Training) => (
                                         <option key={t.id} value={t.id}>{t.title}</option>
                                     ))}
                                 </select>

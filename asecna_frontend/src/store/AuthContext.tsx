@@ -1,6 +1,10 @@
 import { useState, useCallback, type ReactNode } from 'react'
 import type { User, AuthTokens } from '../types'
-import api, { tokenStore } from '../api/client'
+import { tokenStore } from '../api/client'
+// Les appels passent par la couche `api/index.ts` comme toutes les
+// autres pages : le contexte attaquait le client axios en direct,
+// ce qui faisait deux chemins paralleles vers les memes endpoints.
+import { authApi } from '../api'
 import { AuthContext } from './authContextValue'
 
 /**
@@ -38,12 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // de connexion elle-même.
             tokenStore.clear()
 
-            const res = await api.post('/auth/login/', { matricule, password })
+            const res = await authApi.login(matricule, password)
             const { access, refresh } = res.data
             tokenStore.set(access, refresh)
 
             // Le profil complet (rôles, statut, is_admin, parcours) vient de /auth/me/
-            const meRes = await api.get('/auth/me/')
+            const meRes = await authApi.me()
             const userData = meRes.data as User
 
             localStorage.setItem('user', JSON.stringify(userData))
@@ -58,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Blacklister le refresh token côté serveur (best-effort : on déconnecte
         // l'utilisateur localement quoi qu'il arrive).
         if (refresh) {
-            api.post('/auth/logout/', { refresh }).catch(() => undefined)
+            authApi.logout(refresh).catch(() => undefined)
         }
         // `localStorage.clear()` effaçait aussi les préférences d'affichage
         // sans lien avec l'authentification : on ne retire que les clés de session.
@@ -81,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     /** Recharge le profil depuis le serveur (après changement de rôle par exemple). */
     const refreshProfile = useCallback(async () => {
-        const res = await api.get('/auth/me/')
+        const res = await authApi.me()
         const userData = res.data as User
         try {
             localStorage.setItem('user', JSON.stringify(userData))

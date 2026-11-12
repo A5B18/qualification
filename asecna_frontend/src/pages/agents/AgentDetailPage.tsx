@@ -4,7 +4,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { agentsApi, probationApi, mentoringApi, arcepApi, reportsApi } from '../../api'
 import {
     ArrowLeft, User, Briefcase, ClipboardList,
-    BookOpen, BookMarked, FileText, ExternalLink
+    BookOpen, BookMarked, FileText, ExternalLink,
+    Wrench, BadgeCheck, TrendingUp, AlertTriangle,
+    type LucideIcon
 } from 'lucide-react'
 import {
     AgentStatusLabels, AgentStatusColors,
@@ -14,15 +16,28 @@ import {
     type AgentStatus, type ProbationStatus, type MentoringStatus, type ReportStatus, type ReportType
 } from '../../types'
 import { useNow, daysUntil } from '../../utils/dates'
+import type {
+    User as UserType, AgentProfile, AgentSkill, AgentCertification,
+    PerformanceIndicator, ARCEPBook, ARCEPEntry,
+    ProbationPeriod, MentoringRecord, Report,
+} from '../../types'
 
-type Tab = 'profil' | 'probation' | 'mentorat' | 'arcep' | 'rapports'
+type Tab =
+    | 'profil' | 'probation' | 'mentorat' | 'arcep' | 'rapports'
+    | 'competences' | 'certifications' | 'performances'
 
-const TABS: { key: Tab; label: string; icon: any }[] = [
+const TABS: { key: Tab; label: string; icon: LucideIcon }[] = [
     { key: 'profil', label: 'Profil', icon: User },
     { key: 'probation', label: 'Probation', icon: ClipboardList },
     { key: 'mentorat', label: 'Mentorat', icon: BookOpen },
     { key: 'arcep', label: 'Carnet ARCEP', icon: BookMarked },
     { key: 'rapports', label: 'Rapports', icon: FileText },
+    // Ces trois onglets manquaient : les données correspondantes sont
+    // peuplées par `seed_demo` et servies par /agents/, mais aucun écran ne
+    // les affichait.
+    { key: 'competences', label: 'Compétences', icon: Wrench },
+    { key: 'certifications', label: 'Certifications', icon: BadgeCheck },
+    { key: 'performances', label: 'Performances', icon: TrendingUp },
 ]
 
 export default function AgentDetailPage() {
@@ -62,6 +77,24 @@ export default function AgentDetailPage() {
     const { data: reportsData } = useQuery({
         queryKey: ['agent-reports', id],
         queryFn: () => reportsApi.list({ agent: String(id) }).then(r => r.data),
+        enabled: !!id,
+    })
+
+    // Compétences, certifications et performances — filtrées côté serveur
+    // par `?agent=`, ajouté aux trois vues de l'app `agents`.
+    const { data: skillsData } = useQuery({
+        queryKey: ['agent-skills', id],
+        queryFn: () => agentsApi.skills({ agent: String(id) }).then(r => r.data),
+        enabled: !!id,
+    })
+    const { data: certsData } = useQuery({
+        queryKey: ['agent-certifications', id],
+        queryFn: () => agentsApi.certifications({ agent: String(id) }).then(r => r.data),
+        enabled: !!id,
+    })
+    const { data: perfData } = useQuery({
+        queryKey: ['agent-performances', id],
+        queryFn: () => agentsApi.performances({ agent: String(id) }).then(r => r.data),
         enabled: !!id,
     })
 
@@ -136,12 +169,142 @@ export default function AgentDetailPage() {
             {activeTab === 'rapports' && (
                 <RapportsTab reports={reportsData?.results ?? []} />
             )}
+            {activeTab === 'competences' && (
+                <CompetencesTab skills={skillsData?.results ?? []} />
+            )}
+            {activeTab === 'certifications' && (
+                <CertificationsTab certifications={certsData?.results ?? []} />
+            )}
+            {activeTab === 'performances' && (
+                <PerformancesTab performances={perfData?.results ?? []} />
+            )}
+        </div>
+    )
+}
+
+// ─── Onglet Compétences ───────────────────────────────────────────
+
+function CompetencesTab({ skills }: { skills: AgentSkill[] }) {
+    if (skills.length === 0) {
+        return <EmptyTab icon={Wrench} text="Aucune compétence enregistrée pour cet agent." />
+    }
+    return (
+        <div className="space-y-2">
+            {skills.map((skill: AgentSkill) => (
+                <div key={skill.id} className="card py-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                        <p className="font-medium text-gray-900">{skill.name}</p>
+                        {skill.notes && <p className="text-sm text-gray-500 mt-0.5">{skill.notes}</p>}
+                        {skill.acquired_at && (
+                            <p className="text-xs text-gray-400 mt-1">
+                                Acquise le {new Date(skill.acquired_at).toLocaleDateString('fr-FR')}
+                            </p>
+                        )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                        {/* Niveau de 1 (débutant) à 5 (expert) */}
+                        <div className="flex gap-1 justify-end mb-1">
+                            {[1, 2, 3, 4, 5].map(n => (
+                                <span
+                                    key={n}
+                                    className={`w-2.5 h-2.5 rounded-full ${n <= skill.level ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                                />
+                            ))}
+                        </div>
+                        <span className="text-xs text-gray-400">niveau {skill.level}/5</span>
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+// ─── Onglet Certifications ───────────────────────────────────────
+
+function CertificationsTab({ certifications }: { certifications: AgentCertification[] }) {
+    if (certifications.length === 0) {
+        return <EmptyTab icon={BadgeCheck} text="Aucune certification enregistrée pour cet agent." />
+    }
+    const today = new Date()
+    return (
+        <div className="space-y-2">
+            {certifications.map((cert: AgentCertification) => {
+                // Une certification expirée doit sauter aux yeux : c'est elle qui
+                // conditionne le maintien de qualification.
+                const expiry = cert.expiry_date ? new Date(cert.expiry_date) : null
+                const expired = expiry !== null && expiry < today
+                return (
+                    <div key={cert.id} className={`card py-4 ${expired ? 'border-l-4 border-l-red-500' : ''}`}>
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                                <p className="font-medium text-gray-900">{cert.name}</p>
+                                {cert.issuing_body && (
+                                    <p className="text-sm text-gray-500 mt-0.5">{cert.issuing_body}</p>
+                                )}
+                            </div>
+                            {expired && (
+                                <span className="badge bg-red-100 text-red-700 shrink-0 flex items-center gap-1">
+                                    <AlertTriangle size={11} /> Expirée
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-4 text-xs text-gray-500 mt-3 pt-3 border-t border-gray-50">
+                            <span>Obtenue le {new Date(cert.issue_date).toLocaleDateString('fr-FR')}</span>
+                            <span className={expired ? 'text-red-600 font-medium' : ''}>
+                                {expiry
+                                    ? `Expire le ${expiry.toLocaleDateString('fr-FR')}`
+                                    : "Sans date d'expiration"}
+                            </span>
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
+// ─── Onglet Performances ─────────────────────────────────────────
+
+function PerformancesTab({ performances }: { performances: PerformanceIndicator[] }) {
+    if (performances.length === 0) {
+        return <EmptyTab icon={TrendingUp} text="Aucun indicateur de performance pour cet agent." />
+    }
+    const sorted = [...performances].sort((a, b) => b.year - a.year)
+    return (
+        <div className="space-y-2">
+            {sorted.map((perf: PerformanceIndicator) => {
+                const score = Number(perf.score)
+                const color = score >= 80 ? 'bg-green-500' : score >= 70 ? 'bg-amber-500' : 'bg-red-500'
+                return (
+                    <div key={perf.id} className="card py-4">
+                        <div className="flex items-center justify-between gap-4 mb-2">
+                            <span className="font-semibold text-gray-900">{perf.year}</span>
+                            <span className="text-sm font-semibold text-gray-700">{score}/100</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                            <div className={`h-full ${color}`} style={{ width: `${Math.min(score, 100)}%` }} />
+                        </div>
+                        {perf.comments && (
+                            <p className="text-sm text-gray-600 mt-2 italic">« {perf.comments} »</p>
+                        )}
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
+function EmptyTab({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
+    return (
+        <div className="card text-center py-12 text-gray-400">
+            <Icon size={40} className="mx-auto mb-2 opacity-30" />
+            <p className="text-sm">{text}</p>
         </div>
     )
 }
 
 // ─── Onglet Profil ────────────────────────────────────────────────────────────
-function ProfilTab({ user, profile }: { user: any; profile: any }) {
+function ProfilTab({ user, profile }: { user: UserType; profile: AgentProfile | null | undefined }) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card space-y-4">
@@ -186,7 +349,7 @@ function ProfilTab({ user, profile }: { user: any; profile: any }) {
 }
 
 // ─── Onglet Probation ─────────────────────────────────────────────────────────
-function ProbationTab({ probations }: { probations: any[]; agentId?: number }) {
+function ProbationTab({ probations }: { probations: ProbationPeriod[]; agentId?: number }) {
     const now = useNow()
     if (probations.length === 0) return (
         <div className="card text-center py-10 text-gray-400">
@@ -205,7 +368,7 @@ function ProbationTab({ probations }: { probations: any[]; agentId?: number }) {
                     <ExternalLink size={13} /> Vue complète
                 </Link>
             </div>
-            {probations.map((p: any) => {
+            {probations.map((p: ProbationPeriod) => {
                 const status = p.probation_status as ProbationStatus
                 const daysLeft = daysUntil(p.end_date, now)
                 return (
@@ -246,7 +409,7 @@ function ProbationTab({ probations }: { probations: any[]; agentId?: number }) {
 }
 
 // ─── Onglet Mentorat ──────────────────────────────────────────────────────────
-function MentoratTab({ mentorings }: { mentorings: any[] }) {
+function MentoratTab({ mentorings }: { mentorings: MentoringRecord[] }) {
     if (mentorings.length === 0) return (
         <div className="card text-center py-10 text-gray-400">
             <BookOpen size={36} className="mx-auto mb-2 opacity-30" />
@@ -264,7 +427,7 @@ function MentoratTab({ mentorings }: { mentorings: any[] }) {
                     <ExternalLink size={13} /> Vue complète
                 </Link>
             </div>
-            {mentorings.map((m: any) => {
+            {mentorings.map((m: MentoringRecord) => {
                 const status = m.mentoring_status as MentoringStatus
                 return (
                     <div key={m.id} className="card border-l-4 border-l-blue-400 space-y-3">
@@ -301,7 +464,7 @@ function MentoratTab({ mentorings }: { mentorings: any[] }) {
 }
 
 // ─── Onglet ARCEP ─────────────────────────────────────────────────────────────
-function ARCEPTab({ books }: { books: any[] }) {
+function ARCEPTab({ books }: { books: ARCEPBook[] }) {
     if (books.length === 0) return (
         <div className="card text-center py-10 text-gray-400">
             <BookMarked size={36} className="mx-auto mb-2 opacity-30" />
@@ -313,20 +476,20 @@ function ARCEPTab({ books }: { books: any[] }) {
     )
     return (
         <div className="space-y-4">
-            {books.map((book: any) => (
+            {books.map((book: ARCEPBook) => (
                 <ARCEPBookDetail key={book.id} book={book} />
             ))}
         </div>
     )
 }
 
-function ARCEPBookDetail({ book }: { book: any }) {
+function ARCEPBookDetail({ book }: { book: ARCEPBook }) {
     const { data: entriesData } = useQuery({
         queryKey: ['arcep-entries-agent', book.id],
         queryFn: () => arcepApi.entries(book.id).then(r => r.data),
     })
     const entries = entriesData?.results ?? []
-    const totalHours = entries.reduce((s: number, e: any) => s + Number(e.duration_hours), 0)
+    const totalHours = entries.reduce((s: number, e: ARCEPEntry) => s + Number(e.duration_hours), 0)
 
     return (
         <div className="card space-y-4">
@@ -349,7 +512,7 @@ function ARCEPBookDetail({ book }: { book: any }) {
                 <div>
                     <p className="text-sm font-medium text-gray-700 mb-2">{entries.length} entrée(s)</p>
                     <div className="space-y-2">
-                        {entries.slice(0, 5).map((e: any) => (
+                        {entries.slice(0, 5).map((e: ARCEPEntry) => (
                             <div key={e.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
                                 <div>
                                     <span className="text-gray-500 text-xs mr-2">{new Date(e.entry_date).toLocaleDateString('fr-FR')}</span>
@@ -369,7 +532,7 @@ function ARCEPBookDetail({ book }: { book: any }) {
 }
 
 // ─── Onglet Rapports ──────────────────────────────────────────────────────────
-function RapportsTab({ reports }: { reports: any[] }) {
+function RapportsTab({ reports }: { reports: Report[] }) {
     if (reports.length === 0) return (
         <div className="card text-center py-10 text-gray-400">
             <FileText size={36} className="mx-auto mb-2 opacity-30" />
@@ -387,7 +550,7 @@ function RapportsTab({ reports }: { reports: any[] }) {
                     <ExternalLink size={13} /> Vue complète
                 </Link>
             </div>
-            {reports.map((r: any) => {
+            {reports.map((r: Report) => {
                 const status = r.report_status as ReportStatus
                 const type = r.report_type as ReportType
                 return (

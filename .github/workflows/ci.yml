@@ -1,0 +1,89 @@
+name: CI
+
+# Le projet n'avait aucune intégration continue : rien ne garantissait, à la
+# réception d'une contribution, que les 186 tests backend passaient encore, que
+# le frontend compilait, ou qu'aucune migration n'avait été oubliée.
+
+on:
+  push:
+    branches: [main, modification]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Une nouvelle poussée annule la vérification en cours sur la même branche.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Django ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: asecna_backend
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12 est la version de production visée ; 3.13 vérifie que la montée
+        # vers Django 5.2 tient sur la série suivante.
+        python-version: ['3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: asecna_backend/requirements/*.txt
+
+      - name: Installer les dépendances
+        run: pip install -r requirements/development.txt
+
+      - name: Vérifier la cohérence du projet
+        run: python manage.py check --settings=config.settings.development
+
+      - name: Vérifier qu'aucune migration n'a été oubliée
+        run: python manage.py makemigrations --check --dry-run --settings=config.settings.development
+
+      - name: Générer le schéma OpenAPI (doit rester sans erreur)
+        run: python manage.py spectacular --file schema.yml --fail-on-warn --settings=config.settings.development
+
+      - name: Lancer les tests
+        run: python manage.py test --settings=config.settings.development
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: asecna_frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: asecna_frontend/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Typage
+        run: npx tsc -b
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Compilation de production
+        run: npm run build

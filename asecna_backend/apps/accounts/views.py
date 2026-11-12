@@ -282,8 +282,15 @@ class UserViewSet(viewsets.ModelViewSet):
     def reset_password(self, request, pk=None):
         """
         Reset du mot de passe par l'administrateur.
-        Génère un mot de passe temporaire aléatoire de 12 caractères.
-        En production, envoyer par email sécurisé.
+
+        Genere un mot de passe temporaire aleatoire de 12 caracteres, puis
+        l'envoie a l'agent par courriel.
+
+        Le mot de passe en clair n'est renvoye dans la reponse HTTP que si
+        l'envoi n'a pas pu se faire (pas d'adresse connue, SMTP indisponible,
+        ou backend `console` en developpement). Auparavant il etait renvoye
+        systematiquement : il se retrouvait dans les journaux d'acces, dans le
+        cache du navigateur et dans l'historique Swagger.
         """
         user = self.get_object()
         alphabet = string.ascii_letters + string.digits + '!@#$%'
@@ -292,10 +299,62 @@ class UserViewSet(viewsets.ModelViewSet):
         user.set_password(temp_password)
         user.save(update_fields=['password'])
 
-        # TODO Phase 7 : envoyer par email SMTP
-        # send_password_reset_email(user, temp_password)
+        delivered = self._send_temp_password(user, temp_password)
 
-        return Response({
+        payload = {
             'message': f"Mot de passe réinitialisé pour {user.matricule}.",
-            'temp_password': temp_password,   # ⚠️ En production : envoyer par email uniquement
-        })
+            'delivered_by_email': delivered,
+        }
+        if not delivered:
+            # Repli : sans courriel remis, l'administrateur doit pouvoir
+            # transmettre le mot de passe de la main a la main.
+            payload['temp_password'] = temp_password
+            payload['message'] += (
+                " L'envoi par courriel n'a pas abouti : communiquez-le "
+                "directement à l'agent."
+            )
+        return Response(payload)
+
+    @staticmethod
+    def _send_temp_password(user, temp_password: str) -> bool:
+        """
+        Envoie le mot de passe temporaire. Retourne True si le courriel est
+        parti. N'echoue jamais : un SMTP injoignable ne doit pas annuler la
+        reinitialisation, deja ecrite en base.
+        """
+        if not user.email:
+            return False
+        try:
+            from django.conf import settings as dj_settings
+            from django.core.mail import send_mail
+
+            # Les backends `console` et `dummy` n'acheminent rien : ils
+            # impriment ou jettent le message. Les considerer comme remis
+            # ferait perdre le mot de passe en developpement, ou personne ne
+            # lit la sortie standard du serveur. L'administrateur garde donc
+            # le repli dans ces deux cas seulement.
+            backend = getattr(dj_settings, 'EMAIL_BACKEND', '')
+            if 'console' in backend or 'dummy' in backend:
+                return False
+
+            send_mail(
+                subject="ASECNA — réinitialisation de votre mot de passe",
+                message=(
+                    f"Bonjour {user.full_name}," + '\n\n'
+                    + "Votre mot de passe a été réinitialisé par un administrateur." + '\n'
+                    + f"Mot de passe temporaire : {temp_password}" + '\n\n'
+                    + f"Connectez-vous avec votre matricule {user.matricule} puis "
+                    + "changez-le immédiatement depuis « Mon profil »." + '\n'
+                ),
+                from_email=getattr(dj_settings, "DEFAULT_FROM_EMAIL", None),
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            return True
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Envoi du mot de passe temporaire impossible pour %s.",
+                user.matricule, exc_info=True,
+            )
+            return False

@@ -9,6 +9,22 @@ from .models import AgentSkill, AgentCertification, PerformanceIndicator
 from .serializers import AgentSkillSerializer, AgentCertificationSerializer, PerformanceIndicatorSerializer
 
 
+def filter_by_agent(queryset, request):
+    """
+    Applique le filtre `?agent=<id>` commun aux trois ressources.
+
+    La fiche d'un agent affiche ses competences, ses certifications et ses
+    performances : sans ce filtre, chaque onglet recevait la table entiere et
+    devait trier dans le navigateur — donc des donnees d'autres agents
+    transitaient inutilement, et la pagination tronquait le resultat avant
+    meme le tri.
+    """
+    agent_id = request.query_params.get('agent')
+    if agent_id:
+        queryset = queryset.filter(agent_id=agent_id)
+    return queryset
+
+
 class AgentSkillViewSet(viewsets.ModelViewSet):
     """
     Compétences d'un agent.
@@ -28,8 +44,10 @@ class AgentSkillViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_admin or user.has_role('UNIT_CHIEF') or user.has_role('EVALUATOR'):
-            return AgentSkill.objects.all().select_related('agent').order_by('agent', 'name')
-        return AgentSkill.objects.filter(agent=user).order_by('name')
+            qs = AgentSkill.objects.all().select_related('agent').order_by('agent', 'name')
+        else:
+            qs = AgentSkill.objects.filter(agent=user).order_by('name')
+        return filter_by_agent(qs, self.request)
 
     def get_permissions(self):
         return [IsAuthenticated()]
@@ -74,8 +92,10 @@ class AgentCertificationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_admin or user.has_role('UNIT_CHIEF') or user.has_role('APPROVER'):
-            return AgentCertification.objects.all().select_related('agent').order_by('-issue_date')
-        return AgentCertification.objects.filter(agent=user).order_by('-issue_date')
+            qs = AgentCertification.objects.all().select_related('agent').order_by('-issue_date')
+        else:
+            qs = AgentCertification.objects.filter(agent=user).order_by('-issue_date')
+        return filter_by_agent(qs, self.request)
 
     def get_permissions(self):
         return [IsAuthenticated()]
@@ -113,8 +133,10 @@ class PerformanceIndicatorViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_admin or user.has_role('EVALUATOR') or user.has_role('UNIT_CHIEF'):
-            return PerformanceIndicator.objects.all().select_related('agent', 'evaluator').order_by('-year')
-        return PerformanceIndicator.objects.filter(agent=user).order_by('-year')
+            qs = PerformanceIndicator.objects.all().select_related('agent', 'evaluator').order_by('-year')
+        else:
+            qs = PerformanceIndicator.objects.filter(agent=user).order_by('-year')
+        return filter_by_agent(qs, self.request)
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):

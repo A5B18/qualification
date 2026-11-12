@@ -47,6 +47,12 @@ class ExamSessionSerializer(serializers.ModelSerializer):
     agent_detail = serializers.SerializerMethodField()
     graded_by_detail = serializers.SerializerMethodField()
     approved_by_detail = serializers.SerializerMethodField()
+    # Avancement de la correction : sans ces compteurs, l'ecran de correction
+    # ne pouvait pas indiquer combien de reponses restaient a corriger, et le
+    # bouton « Soumettre » partait vers un 400 « N reponse(s) non corrigees ».
+    answers_count = serializers.SerializerMethodField()
+    corrected_count = serializers.SerializerMethodField()
+    pending_correction_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ExamSession
@@ -60,6 +66,15 @@ class ExamSessionSerializer(serializers.ModelSerializer):
         if obj.exam:
             return {'id': obj.exam.id, 'title': obj.exam.title, 'passing_score': obj.exam.passing_score}
         return None
+
+    def get_answers_count(self, obj) -> int:
+        return obj.answers.count()
+
+    def get_corrected_count(self, obj) -> int:
+        return obj.answers.filter(evaluator_score__isnull=False).count()
+
+    def get_pending_correction_count(self, obj) -> int:
+        return obj.answers.filter(evaluator_score__isnull=True).count()
 
     def get_agent_detail(self, obj) -> dict | None:
         if obj.agent:
@@ -111,3 +126,35 @@ class AnswerSubmitSerializer(serializers.Serializer):
     """Soumettre une réponse lors d'une session d'examen."""
     question = serializers.IntegerField()
     response = serializers.CharField()
+
+
+class QuestionPublicSerializer(serializers.ModelSerializer):
+    """
+    Enonce presente a l'agent pendant la composition.
+
+    Volontairement ampute de `correct_answer` : le serializer complet
+    (`QuestionSerializer`, avec `fields = '__all__'`) exposait la bonne reponse
+    a quiconque listait les questions, y compris l'agent en train de composer.
+    """
+
+    class Meta:
+        model = Question
+        fields = ('id', 'text', 'question_type', 'question_kind',
+                  'difficulty', 'options', 'points')
+
+
+class AnswerGradeSerializer(serializers.Serializer):
+    """
+    Correction d'une reponse par l'evaluateur.
+
+    Declare pour que drf-spectacular documente le corps de `grade-answer`
+    (il etait lu directement dans `request.data`, donc absent du schema).
+    La validation fine (bornes du bareme, is_correct textuel) reste dans la
+    vue, qui doit repondre 400 avec le message metier attendu par le
+    frontend.
+    """
+
+    answer_id       = serializers.IntegerField()
+    is_correct      = serializers.BooleanField()
+    evaluator_score = serializers.DecimalField(max_digits=4, decimal_places=2)
+    feedback        = serializers.CharField(required=False, allow_blank=True, default='')

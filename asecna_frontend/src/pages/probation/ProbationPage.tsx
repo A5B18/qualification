@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { apiErrorMessage } from '../../api/client'
 import { useNow, daysUntil, isWithinAlertWindow } from '../../utils/dates'
+import type { User, ProbationPeriod } from '../../types'
 
 const STATUS_LABELS: Record<string, string> = {
     IN_PROGRESS: 'En cours', PASSED: 'Réussie ✓', FAILED: 'Échouée',
@@ -19,11 +20,11 @@ const STATUS_COLORS: Record<string, string> = {
     FAILED: 'bg-red-100 text-red-700',
 }
 
-function canCreate(user: any) {
+function canCreate(user: User | null) {
     const r: string[] = user?.roles ?? []
     return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF')
 }
-function canFinalize(user: any) {
+function canFinalize(user: User | null) {
     const r: string[] = user?.roles ?? []
     return user?.is_superuser || r.includes('ADMIN') || r.includes('EVALUATOR') || r.includes('UNIT_CHIEF')
 }
@@ -60,12 +61,12 @@ export default function ProbationPage() {
 
     const probations = data?.results ?? []
     const agents = agentsData?.results ?? []
-    const inProgress = probations.filter((p: any) => p.probation_status === 'IN_PROGRESS').length
-    const passed = probations.filter((p: any) => p.probation_status === 'PASSED').length
-    const failed = probations.filter((p: any) => p.probation_status === 'FAILED').length
+    const inProgress = probations.filter((p: ProbationPeriod) => p.probation_status === 'IN_PROGRESS').length
+    const passed = probations.filter((p: ProbationPeriod) => p.probation_status === 'PASSED').length
+    const failed = probations.filter((p: ProbationPeriod) => p.probation_status === 'FAILED').length
 
     const createMut = useMutation({
-        mutationFn: (data: any) => probationApi.create({ ...data, agent: Number(data.agent), attempt_number: 1 }),
+        mutationFn: (data: Record<string, string>) => probationApi.create({ ...data, agent: Number(data.agent), attempt_number: 1 }),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['probations-all'] })
             setShowCreate(false)
@@ -86,7 +87,7 @@ export default function ProbationPage() {
         onError: (e: unknown) => notify(apiErrorMessage(e, '❌ Erreur lors de la finalisation'), false),
     })
 
-    const dueAlert = probations.filter((p: any) => {
+    const dueAlert = probations.filter((p: ProbationPeriod) => {
         if (p.probation_status !== 'IN_PROGRESS') return false
         return isWithinAlertWindow(daysUntil(p.end_date, now))
     })
@@ -160,7 +161,7 @@ export default function ProbationPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {probations.map((p: any) => {
+                            {probations.map((p: ProbationPeriod) => {
                                 const daysLeft = daysUntil(p.end_date, now)
                                 const urgent = isWithinAlertWindow(daysLeft) && p.probation_status === 'IN_PROGRESS'
                                 return (
@@ -185,7 +186,7 @@ export default function ProbationPage() {
                                         </td>
                                         <td className="px-5 py-3.5">
                                             {p.score != null ? (
-                                                <span className={`font-semibold flex items-center gap-1 ${p.score >= 70 ? 'text-green-600' : 'text-red-500'}`}>
+                                                <span className={`font-semibold flex items-center gap-1 ${Number(p.score) >= 70 ? 'text-green-600' : 'text-red-500'}`}>
                                                     <Star size={12} /> {p.score}/100
                                                 </span>
                                             ) : '—'}
@@ -226,7 +227,7 @@ export default function ProbationPage() {
                                 <select required value={createForm.agent} onChange={e => setCreateForm(f => ({ ...f, agent: e.target.value }))}
                                     className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                                     <option value="">— Choisir —</option>
-                                    {agents.map((a: any) => (
+                                    {agents.map((a: User) => (
                                         <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.matricule})</option>
                                     ))}
                                 </select>

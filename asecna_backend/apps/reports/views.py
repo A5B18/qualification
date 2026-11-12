@@ -4,9 +4,11 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
 from django.utils import timezone
 
 from core.permissions import IsApproverOrUnitChief, IsAdministrator
+from apps.workflows import services as workflows
 from .models import Report
 from .serializers import ReportSerializer
 
@@ -51,9 +53,13 @@ class ReportViewSet(viewsets.ModelViewSet):
         if report.report_status != Report.ReportStatus.DRAFT:
             return Response({'error': {'code': 'bad_request', 'message': 'Rapport non en brouillon.'}},
                             status=status.HTTP_400_BAD_REQUEST)
-        report.report_status = Report.ReportStatus.SUBMITTED
-        report.submitted_at = timezone.now()
-        report.save()
+        # La transition metier et son inscription au registre d'approbation
+        # vont ensemble : si l'une echoue, l'autre ne doit pas rester.
+        with transaction.atomic():
+            report.report_status = Report.ReportStatus.SUBMITTED
+            report.submitted_at = timezone.now()
+            report.save()
+            workflows.record_submission(report, submitted_by=request.user)
         return Response(ReportSerializer(report).data)
 
     @action(detail=True, methods=['post'])
@@ -62,11 +68,14 @@ class ReportViewSet(viewsets.ModelViewSet):
         if report.report_status != Report.ReportStatus.SUBMITTED:
             return Response({'error': {'code': 'bad_request', 'message': 'Rapport non soumis.'}},
                             status=status.HTTP_400_BAD_REQUEST)
-        report.approver_opinion = request.data.get('opinion', '')
-        report.report_status = Report.ReportStatus.APPROVED
-        report.approved_at = timezone.now()
-        report.approver = request.user
-        report.save()
+        opinion = request.data.get('opinion', '')
+        with transaction.atomic():
+            report.approver_opinion = opinion
+            report.report_status = Report.ReportStatus.APPROVED
+            report.approved_at = timezone.now()
+            report.approver = request.user
+            report.save()
+            workflows.record_approval(report, approver=request.user, comment=opinion)
         return Response(ReportSerializer(report).data)
 
     @action(detail=True, methods=['post'])
@@ -77,8 +86,11 @@ class ReportViewSet(viewsets.ModelViewSet):
         if report.report_status != Report.ReportStatus.SUBMITTED:
             return Response({'error': {'code': 'bad_request', 'message': 'Rapport non soumis.'}},
                             status=status.HTTP_400_BAD_REQUEST)
-        report.approver = request.user
-        report.approver_opinion = request.data.get('opinion', '')
-        report.report_status = Report.ReportStatus.REJECTED
-        report.save()
+        opinion = request.data.get('opinion', '')
+        with transaction.atomic():
+            report.approver = request.user
+            report.approver_opinion = opinion
+            report.report_status = Report.ReportStatus.REJECTED
+            report.save()
+            workflows.record_rejection(report, approver=request.user, reason=opinion)
         return Response(ReportSerializer(report).data)

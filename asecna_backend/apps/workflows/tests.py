@@ -4,10 +4,15 @@ Tests unitaires pour l'app workflows.
 Couvre :
 - ApprovalWorkflow : création avec GenericForeignKey
 - Transitions de statut DRAFT → SUBMITTED → APPROVED / REJECTED
+- Unicité de la ligne de registre par objet métier
 - __str__
+
+Le raccordement des modules au registre est testé à part, dans
+`tests/test_workflow_ledger.py`.
 """
 
 import datetime
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.contrib.contenttypes.models import ContentType
 
@@ -102,12 +107,40 @@ class ApprovalWorkflowTest(TestCase):
         wf.refresh_from_db()
         self.assertEqual(wf.unit_chief, self.chief)
 
-    def test_multiple_workflows_for_same_object(self):
-        """Plusieurs workflows peuvent être attachés au même objet."""
-        wf1 = self._make_workflow()
-        wf2 = ApprovalWorkflow.objects.create(
-            content_type=self.content_type,
-            object_id=self.report.pk,
-            submitted_by=self.approver,
+    def test_un_seul_workflow_par_objet(self):
+        """
+        Un objet metier n'a qu'une ligne de registre.
+
+        Ce test affirmait l'inverse tant que `ApprovalWorkflow` n'etait relie a
+        rien : empiler des lignes sur un meme objet etait sans consequence.
+        Depuis que les modules alimentent le registre
+        (`apps.workflows.services`), l'unicite est l'invariant qui rend les
+        ecritures idempotentes — une resoumission apres rejet met la ligne a
+        jour au lieu d'en creer une seconde — et qui permet de remonter du
+        registre vers l'objet sans ambiguite.
+
+        La contrainte `unique_workflow_per_object` la fait respecter en base.
+        """
+        self._make_workflow()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ApprovalWorkflow.objects.create(
+                    content_type=self.content_type,
+                    object_id=self.report.pk,
+                    submitted_by=self.approver,
+                )
+
+    def test_get_or_create_met_a_jour_la_ligne_existante(self):
+        """Corollaire : le service retrouve la ligne au lieu d'en ajouter une."""
+        wf = self._make_workflow()
+        encore, created = ApprovalWorkflow.objects.get_or_create(
+            content_type=self.content_type, object_id=self.report.pk,
         )
-        self.assertNotEqual(wf1.pk, wf2.pk)
+        self.assertFalse(created)
+        self.assertEqual(encore.pk, wf.pk)
+        self.assertEqual(
+            ApprovalWorkflow.objects.filter(
+                content_type=self.content_type, object_id=self.report.pk,
+            ).count(),
+            1,
+        )

@@ -1,4 +1,4 @@
-.PHONY: help install shell run migrations migrate superuser test fixtures clean
+.PHONY: help install shell run migrations migrate superuser test fixtures demo clean
 
 SETTINGS = config.settings.development
 PYTHON   = .\venv\Scripts\python
@@ -12,6 +12,7 @@ help:
 	@echo "  migrate     Applique les migrations sur SQLite"
 	@echo "  superuser   Cree un superutilisateur admin"
 	@echo "  fixtures    Charge les donnees initiales (unites, specialites)"
+	@echo "  demo        Charge le jeu de donnees de demonstration"
 	@echo "  test        Lance tous les tests unitaires"
 	@echo "  shell       Lance le shell Django interactif"
 	@echo "  clean       Supprime les fichiers __pycache__ et .pyc"
@@ -34,8 +35,12 @@ superuser:
 fixtures:
 	$(PYTHON) manage.py loaddata fixtures/initial_data.json --settings=$(SETTINGS)
 
+# `scripts/create_demo_data.py` etait l'ancien script autonome : il ne
+# couvrait plus tous les modules et n'etait pas idempotent. La commande
+# de gestion `seed_demo` l'a remplace (c'est elle que documentent le
+# README et le guide de tests).
 demo:
-	$(PYTHON) scripts/create_demo_data.py
+	$(PYTHON) manage.py seed_demo --settings=$(SETTINGS)
 
 test:
 	$(PYTHON) manage.py test --settings=$(SETTINGS) --verbosity=2

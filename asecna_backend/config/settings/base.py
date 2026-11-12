@@ -153,6 +153,14 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API de gestion du parcours des agents ASECNA',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+
+    # Report.report_status et ApprovalWorkflow.workflow_status portent le meme
+    # jeu de valeurs (DRAFT / SUBMITTED / APPROVED / REJECTED). Sans ce nom
+    # explicite, drf-spectacular derivait deux fois « ReportStatusEnum » pour le
+    # meme ensemble et avertissait a chaque generation du schema.
+    'ENUM_NAME_OVERRIDES': {
+        'ApprovalStatusEnum': 'apps.reports.models.Report.ReportStatus',
+    },
 }
 
 # =============================================================================

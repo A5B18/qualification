@@ -3,10 +3,12 @@ import { evaluationsApi, trainingApi } from '../../api'
 import { useAuth } from '../../store/authContextValue'
 import {
     Award, AlertTriangle,
-    ThumbsUp, ThumbsDown, Plus, X,
+    ThumbsUp, ThumbsDown, Plus, X, ChevronRight, PenLine,
 } from 'lucide-react'
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { apiErrorMessage } from '../../api/client'
+import type { User, ExamSession, Exam, Training } from '../../types'
 
 const SESSION_STATUS_LABELS: Record<string, string> = {
     IN_PROGRESS: 'En cours',
@@ -25,13 +27,13 @@ const SESSION_STATUS_COLORS: Record<string, string> = {
     REJECTED: 'bg-red-100 text-red-700',
 }
 
-function canCreateExam(user: any): boolean {
+function canCreateExam(user: User | null): boolean {
     const roles: string[] = user?.roles ?? []
     return user?.is_superuser || user?.is_admin ||
         roles.includes('ADMIN') || roles.includes('EVALUATOR') || roles.includes('INSTRUCTOR')
 }
 
-function canApprove(user: any): boolean {
+function canApprove(user: User | null): boolean {
     const roles: string[] = user?.roles ?? []
     return user?.is_superuser || user?.is_admin ||
         roles.includes('ADMIN') || roles.includes('UNIT_CHIEF') || roles.includes('APPROVER')
@@ -40,6 +42,7 @@ function canApprove(user: any): boolean {
 export default function EvaluationsPage() {
     const { user } = useAuth()
     const qc = useQueryClient()
+    const navigate = useNavigate()
 
     // États
     const [showCreateExam, setShowCreateExam] = useState(false)
@@ -76,10 +79,10 @@ export default function EvaluationsPage() {
     const sessions = sessionsData?.results ?? []
     const trainings = trainingsData?.results ?? []
 
-    const pendingApproval = sessions.filter((s: any) => s.session_status === 'PENDING_APPROVAL')
-    const graded = sessions.filter((s: any) => s.session_status === 'GRADED')
+    const pendingApproval = sessions.filter((s: ExamSession) => s.session_status === 'PENDING_APPROVAL')
+    const graded = sessions.filter((s: ExamSession) => s.session_status === 'GRADED')
     const avgScore = graded.length > 0
-        ? Math.round(graded.reduce((acc: number, s: any) => acc + (s.score ?? 0), 0) / graded.length)
+        ? Math.round(graded.reduce((acc: number, s: ExamSession) => acc + Number(s.score ?? 0), 0) / graded.length)
         : 0
 
     // ── Mutations ─────────────────────────────────────────────────────────────
@@ -124,7 +127,7 @@ export default function EvaluationsPage() {
             setShowCreateExam(false)
             setExamForm({ title: '', description: '', passing_score: 70, training: '' })
             flash('✅ Examen créé avec succès')
-        } catch (err: any) {
+        } catch (err: unknown) {
             flash(apiErrorMessage(err, '❌ Erreur lors de la création'), 'error')
         }
     }
@@ -184,7 +187,7 @@ export default function EvaluationsPage() {
                         Corrections à valider ({pendingApproval.length})
                     </h2>
                     <div className="space-y-3">
-                        {pendingApproval.map((session: any) => (
+                        {pendingApproval.map((session: ExamSession) => (
                             <div key={session.id} className="flex items-center justify-between p-3 rounded-xl bg-purple-50 border border-purple-100">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
@@ -193,7 +196,7 @@ export default function EvaluationsPage() {
                                     </div>
                                     <div className="text-xs text-gray-500 mt-0.5">
                                         {session.exam_detail?.title} — Score provisoire :
-                                        <strong className={`ml-1 ${(session.score ?? 0) >= (session.exam_detail?.passing_score ?? 70) ? 'text-green-600' : 'text-red-600'}`}>
+                                        <strong className={`ml-1 ${Number(session.score ?? 0) >= (session.exam_detail?.passing_score ?? 70) ? 'text-green-600' : 'text-red-600'}`}>
                                             {session.score ?? '?'}/100
                                         </strong>
                                     </div>
@@ -247,18 +250,37 @@ export default function EvaluationsPage() {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {exams.map((exam: any) => (
-                                <div key={exam.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                                    <div>
+                            {exams.map((exam: Exam) => (
+                                <div key={exam.id} className="flex items-center justify-between gap-2 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                                    <div className="min-w-0">
                                         <div className="text-sm font-medium text-gray-900">{exam.title}</div>
                                         <div className="text-xs text-gray-500">
                                             {exam.training_detail?.title ?? 'Sans formation'} · Seuil {exam.passing_score ?? 70}%
                                             {exam.questions_count !== undefined && ` · ${exam.questions_count} question${exam.questions_count > 1 ? 's' : ''}`}
                                         </div>
                                     </div>
-                                    <span className={`badge text-xs ${exam.exam_status === 'PUBLISHED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                        {exam.exam_status === 'PUBLISHED' ? 'Publié' : 'Brouillon'}
-                                    </span>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className={`badge text-xs ${exam.exam_status === 'PUBLISHED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            {exam.exam_status === 'PUBLISHED' ? 'Publié' : 'Brouillon'}
+                                        </span>
+                                        {/* Un évaluateur compose l'examen ; un agent le passe. */}
+                                        {canCreateExam(user) ? (
+                                            <Link
+                                                to={`/evaluations/exams/${exam.id}`}
+                                                title="Composer l'examen (questions, publication)"
+                                                className="text-xs px-2 py-1 bg-asecna-50 text-asecna-700 hover:bg-asecna-100 rounded-lg transition-colors flex items-center gap-1"
+                                            >
+                                                <PenLine size={12} /> Composer
+                                            </Link>
+                                        ) : exam.exam_status === 'PUBLISHED' && (
+                                            <Link
+                                                to={`/evaluations/exams/${exam.id}/compose`}
+                                                className="text-xs px-2 py-1 bg-asecna-600 text-white hover:bg-asecna-700 rounded-lg transition-colors"
+                                            >
+                                                Passer l'épreuve
+                                            </Link>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -276,28 +298,48 @@ export default function EvaluationsPage() {
                         <p className="text-gray-400 text-sm text-center py-10">Aucune session enregistrée</p>
                     ) : (
                         <div className="space-y-2">
-                            {sessions.slice(0, 10).map((session: any) => {
+                            {sessions.slice(0, 10).map((session: ExamSession) => {
                                 const st = session.session_status as string
-                                const canSubmit = st === 'CORRECTING'
+                                const pending = session.pending_correction_count ?? 0
+                                // La soumission n'est acceptée que depuis CORRECTING ou
+                                // REJECTED, et seulement si tout est corrigé. L'ancien
+                                // bouton ignorait le second point : il partait donc vers
+                                // un 400 « N réponse(s) non corrigées ». La ligne mène
+                                // désormais à l'écran de correction, qui permet justement
+                                // de les corriger.
+                                const canSubmit =
+                                    (st === 'CORRECTING' || st === 'REJECTED') && pending === 0
                                 return (
-                                    <div key={session.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
-                                        <div>
+                                    <div
+                                        key={session.id}
+                                        onClick={() => navigate(`/evaluations/sessions/${session.id}`)}
+                                        className="flex items-center justify-between gap-2 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                                    >
+                                        <div className="min-w-0">
                                             <div className="text-sm font-medium text-gray-900">
                                                 {session.agent_detail?.matricule ?? `Agent #${session.agent}`}
                                             </div>
                                             <div className="text-xs text-gray-500">
                                                 {session.exam_detail?.title ?? '—'}
                                                 {session.score != null &&
-                                                    <span className={`ml-2 font-semibold ${session.score >= (session.exam_detail?.passing_score ?? 70) ? 'text-green-600' : 'text-red-500'}`}>
+                                                    <span className={`ml-2 font-semibold ${Number(session.score) >= (session.exam_detail?.passing_score ?? 70) ? 'text-green-600' : 'text-red-500'}`}>
                                                         {session.score}/100
                                                     </span>
                                                 }
+                                                {pending > 0 && (
+                                                    <span className="ml-2 text-amber-600">
+                                                        {pending} réponse(s) à corriger
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 shrink-0">
                                             {canSubmit && canCreateExam(user) && (
                                                 <button
-                                                    onClick={() => submitApprovalMut.mutate(session.id)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        submitApprovalMut.mutate(session.id)
+                                                    }}
                                                     disabled={submitApprovalMut.isPending}
                                                     className="text-xs px-2 py-1 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors"
                                                 >
@@ -307,6 +349,7 @@ export default function EvaluationsPage() {
                                             <span className={`badge text-xs ${SESSION_STATUS_COLORS[st] ?? 'bg-gray-100 text-gray-600'}`}>
                                                 {SESSION_STATUS_LABELS[st] ?? st}
                                             </span>
+                                            <ChevronRight size={15} className="text-gray-300" />
                                         </div>
                                     </div>
                                 )
@@ -345,7 +388,7 @@ export default function EvaluationsPage() {
                                     onChange={e => setExamForm(f => ({ ...f, training: e.target.value }))}
                                 >
                                     <option value="">— Aucune formation —</option>
-                                    {trainings.map((t: any) => (
+                                    {trainings.map((t: Training) => (
                                         <option key={t.id} value={t.id}>{t.title}</option>
                                     ))}
                                 </select>

@@ -4,14 +4,16 @@ import {
     LayoutDashboard, Users, ClipboardList, BookOpen,
     BookMarked, GraduationCap, FileText, Building2,
     LogOut, Award, Menu, X, ShieldCheck,
-    Bell,
+    Bell, ShieldAlert, UserCog, UserCircle, GitPullRequestArrow,
+    type LucideIcon,
 } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { authApi } from '../api'
+import type { User } from '../types'
 
 // ─── Définition des menus par rôle ──────────────────────────────────────────
 
-type NavItem = { to: string; label: string; icon: any }
+type NavItem = { to: string; label: string; icon: LucideIcon }
 
 const NAV_ADMIN: NavItem[] = [
     { to: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
@@ -24,6 +26,11 @@ const NAV_ADMIN: NavItem[] = [
     { to: '/reports', label: 'Rapports', icon: FileText },
     { to: '/training', label: 'Formations', icon: GraduationCap },
     { to: '/training/maintenances', label: 'Maintien QF', icon: ShieldCheck },
+    // Ces deux ecrans existaient cote API mais n'etaient atteignables que par
+    // l'admin Django ou Swagger.
+    { to: '/workflows', label: 'Approbations', icon: GitPullRequestArrow },
+    { to: '/users', label: 'Comptes & roles', icon: UserCog },
+    { to: '/audit', label: 'Journal d\'audit', icon: ShieldAlert },
 ]
 
 const NAV_UNIT_CHIEF: NavItem[] = [
@@ -34,10 +41,14 @@ const NAV_UNIT_CHIEF: NavItem[] = [
     { to: '/arcep', label: 'Carnets ARCEP', icon: BookMarked },
     { to: '/evaluations', label: 'Évaluations', icon: Award },
     { to: '/reports', label: 'Rapports', icon: FileText },
+    { to: '/workflows', label: 'Approbations', icon: GitPullRequestArrow },
 ]
 
 const NAV_APPROVER: NavItem[] = [
     { to: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+    // Le registre transversal est l'ecran principal de l'approbateur : il y
+    // voit d'un coup tout ce qui attend sa decision, tous modules confondus.
+    { to: '/workflows', label: 'Approbations', icon: GitPullRequestArrow },
     { to: '/reports', label: 'Rapports à approuver', icon: FileText },
     { to: '/mentoring', label: 'Mentorats soumis', icon: BookOpen },
     { to: '/evaluations', label: 'Évaluations', icon: Award },
@@ -77,7 +88,7 @@ const NAV_AGENT: NavItem[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function detectRole(user: any): string {
+function detectRole(user: User | null): string {
     const roles: string[] = user?.roles ?? []
     if (user?.is_superuser || user?.is_admin || roles.includes('ADMIN')) return 'admin'
     if (roles.includes('UNIT_CHIEF')) return 'unit_chief'
@@ -317,6 +328,19 @@ export default function Layout() {
                                 <div className="text-xs text-gray-400">{ROLE_LABELS[role]}</div>
                             </div>
                         )}
+                        {/* Accès à « Mon profil » : c'est le seul endroit d'où un
+                            agent peut changer son mot de passe. */}
+                        <NavLink
+                            to="/profile"
+                            title="Mon profil et mon mot de passe"
+                            className={({ isActive }) =>
+                                `p-2 rounded-lg transition-colors ${isActive
+                                    ? 'text-asecna-600 bg-asecna-50'
+                                    : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`
+                            }
+                        >
+                            <UserCircle size={18} />
+                        </NavLink>
                     </div>
                 </header>
 

@@ -3,6 +3,7 @@ import { unitsApi, agentsApi } from '../../api'
 import { Building2, Users, MapPin, ChevronDown, ChevronUp, User } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import type { User as AgentUser, Unit } from '../../types'
 
 const TYPE_LABELS: Record<string, string> = {
     COM: 'Communication', NAV: 'Navigation', SURV: 'Surveillance', MET: 'Météorologie', OTHER: 'Autre',
@@ -37,7 +38,7 @@ export default function UnitsPage() {
     const agents = agentsData?.results ?? []
 
     const totalAgents = agents.length
-    const qualified = agents.filter((a: any) => a.status === 'QUALIFIED' || a.agent_profile?.status === 'QUALIFIED').length
+    const qualified = agents.filter((a: AgentUser) => a.status === 'QUALIFIED' || a.agent_profile?.status === 'QUALIFIED').length
 
     return (
         <div className="space-y-6">
@@ -54,7 +55,7 @@ export default function UnitsPage() {
                     { label: 'Unités', value: data?.count ?? 0, color: 'text-asecna-600' },
                     { label: 'Agents total', value: totalAgents, color: 'text-blue-600' },
                     { label: 'Qualifiés', value: qualified, color: 'text-green-600' },
-                    { label: 'En formation', value: agents.filter((a: any) => ['PROBATION', 'MENTORED', 'TRAINEE'].includes(a.status ?? a.agent_profile?.status)).length, color: 'text-amber-600' },
+                    { label: 'En formation', value: agents.filter((a: AgentUser) => ['PROBATION', 'MENTORED', 'TRAINEE'].includes(String(a.status ?? a.agent_profile?.status))).length, color: 'text-amber-600' },
                 ].map(({ label, value, color }) => (
                     <div key={label} className="card text-center py-4">
                         <div className={`text-3xl font-bold ${color}`}>{value}</div>
@@ -74,11 +75,11 @@ export default function UnitsPage() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {units.map((unit: any) => (
+                    {units.map((unit: Unit) => (
                         <UnitRow
                             key={unit.id}
                             unit={unit}
-                            agents={agents.filter((a: any) => {
+                            agents={agents.filter((a: AgentUser) => {
                                 // Filtrer les agents appartenant à cette unité
                                 return a.unit === unit.id ||
                                     a.agent_profile?.unit === unit.id ||
@@ -92,10 +93,10 @@ export default function UnitsPage() {
     )
 }
 
-function UnitRow({ unit, agents }: { unit: any; agents: any[] }) {
+function UnitRow({ unit, agents }: { unit: Unit; agents: AgentUser[] }) {
     const [expanded, setExpanded] = useState(false)
 
-    const qualified = agents.filter((a: any) => {
+    const qualified = agents.filter((a: AgentUser) => {
         const st = a.status ?? a.agent_profile?.status
         return st === 'QUALIFIED'
     }).length
@@ -145,7 +146,7 @@ function UnitRow({ unit, agents }: { unit: any; agents: any[] }) {
                             <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-3">
                                 Agents de l'unité ({agents.length})
                             </div>
-                            {agents.map((agent: any) => {
+                            {agents.map((agent: AgentUser) => {
                                 const status = agent.status ?? agent.agent_profile?.status ?? 'NEW'
                                 return (
                                     <div key={agent.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">

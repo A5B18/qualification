@@ -6,8 +6,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from core.permissions import IsMentor, IsApproverOrUnitChief
+from apps.workflows import services as workflows
 from .models import MentoringRecord
 from .serializers import (
     MentoringRecordSerializer,
@@ -70,7 +72,13 @@ class MentoringRecordViewSet(viewsets.ModelViewSet):
 
         try:
             chief = User.objects.get(pk=serializer.validated_data['unit_chief'])
-            record.submit(unit_chief=chief)
+            with transaction.atomic():
+                record.submit(unit_chief=chief)
+                # Le decideur est connu des la soumission pour une fiche de
+                # mentorat : on l'inscrit au registre.
+                workflows.record_submission(
+                    record, submitted_by=request.user, unit_chief=chief,
+                )
             return Response(MentoringRecordSerializer(record).data)
         except User.DoesNotExist:
             return Response({'error': {'code': 'not_found', 'message': 'Chef d\'unité introuvable.'}},
@@ -85,8 +93,14 @@ class MentoringRecordViewSet(viewsets.ModelViewSet):
         record = self.get_object()
         serializer = MentoringDecisionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        opinion = serializer.validated_data.get('opinion', '')
         try:
-            record.approve(opinion=serializer.validated_data.get('opinion', ''))
+            with transaction.atomic():
+                record.approve(opinion=opinion)
+                workflows.record_approval(
+                    record, approver=request.user, comment=opinion,
+                    as_unit_chief=True,
+                )
             return Response(MentoringRecordSerializer(record).data)
         except ValidationError as e:
             return Response({'error': {'code': 'bad_request', 'message': str(e.message)}},
@@ -98,8 +112,14 @@ class MentoringRecordViewSet(viewsets.ModelViewSet):
         record = self.get_object()
         serializer = MentoringDecisionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        opinion = serializer.validated_data.get('opinion', '')
         try:
-            record.reject(opinion=serializer.validated_data.get('opinion', ''))
+            with transaction.atomic():
+                record.reject(opinion=opinion)
+                workflows.record_rejection(
+                    record, approver=request.user, reason=opinion,
+                    as_unit_chief=True,
+                )
             return Response(MentoringRecordSerializer(record).data)
         except ValidationError as e:
             return Response({'error': {'code': 'bad_request', 'message': str(e.message)}},

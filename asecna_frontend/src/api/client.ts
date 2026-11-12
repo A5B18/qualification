@@ -52,6 +52,21 @@ function redirectToLogin() {
 
 // ─── Requêtes : injection du jeton ────────────────────────────────────────────
 
+/**
+ * Taille de page demandee par defaut sur toutes les listes.
+ *
+ * Le backend pagine a 20 elements (`core.pagination.StandardPagination`) et
+ * aucun ecran n'affichait de pastille « page suivante » : les listes etaient
+ * donc tronquees en silence. La page Agents n'en montrait que 20 sur 23, et
+ * la recherche — purement locale — ne trouvait pas les trois derniers. Le
+ * tableau de bord, lui, calculait ses compteurs et son graphique sur cette
+ * premiere page seulement.
+ *
+ * Demander explicitement une grande page remet d'aplomb tous les ecrans d'un
+ * coup. 200 reste sous le plafond serveur (`max_page_size = 500`).
+ */
+export const DEFAULT_PAGE_SIZE = 200
+
 api.interceptors.request.use((config) => {
     const token = tokenStore.access()
     if (token) {
@@ -60,6 +75,14 @@ api.interceptors.request.use((config) => {
     // Laisser le navigateur poser le bon Content-Type (avec boundary) pour FormData
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
         delete config.headers['Content-Type']
+    }
+    // Les GET de liste reclament une page large, sauf si l'appelant a deja
+    // choisi sa taille (ou demande une page precise).
+    if ((config.method ?? 'get').toLowerCase() === 'get') {
+        const params = (config.params ?? {}) as Record<string, unknown>
+        if (params.page_size === undefined && params.page === undefined) {
+            config.params = { ...params, page_size: String(DEFAULT_PAGE_SIZE) }
+        }
     }
     return config
 })
@@ -130,8 +153,14 @@ api.interceptors.response.use(
  * `response.data.detail`, qui est toujours absent : tous les messages
  * d'erreur métier s'affichaient donc comme « ❌ Erreur ».
  */
+/** Corps d'erreur normalise par `core.exceptions.custom_exception_handler`. */
+type ApiErrorBody = {
+    error?: { code?: string; message?: string; details?: unknown }
+    detail?: string
+} & Record<string, unknown>
+
 export function apiErrorMessage(error: unknown, fallback = 'Une erreur est survenue.'): string {
-    const data = (error as AxiosError<any>)?.response?.data as any
+    const data = (error as AxiosError<ApiErrorBody>)?.response?.data
     if (!data) {
         const msg = (error as Error)?.message
         return msg && msg !== 'Network Error' ? msg : fallback
