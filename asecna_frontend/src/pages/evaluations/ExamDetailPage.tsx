@@ -208,7 +208,7 @@ export default function ExamDetailPage() {
                                 title={attached.length === 0
                                     ? 'Un examen sans question ne peut pas être publié'
                                     : 'Rendre l\'examen composable par les agents'}
-                                className="px-3 py-2 rounded-lg text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                                className="px-3 py-2 rounded-lg text-sm bg-success-600 text-white hover:bg-success-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                             >
                                 <Eye size={14} /> Publier
                             </button>
@@ -218,7 +218,7 @@ export default function ExamDetailPage() {
             </div>
 
             {flash && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-success-50 text-success-800 border border-success-200' : 'bg-danger-50 text-danger-800 border border-danger-200'}`}>
                     {flash.text}
                 </div>
             )}
@@ -384,7 +384,7 @@ export default function ExamDetailPage() {
                                             </div>
                                             <p className="text-sm text-gray-900">{q.text}</p>
                                             {q.correct_answer && (
-                                                <p className="text-xs text-green-700 mt-1">
+                                                <p className="text-xs text-success-700 mt-1">
                                                     Attendu : {q.correct_answer}
                                                 </p>
                                             )}
@@ -393,7 +393,7 @@ export default function ExamDetailPage() {
                                             onClick={() => detach(q.id)}
                                             disabled={setQuestionsMut.isPending}
                                             title="Retirer de cet examen"
-                                            className="shrink-0 p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                            className="shrink-0 p-2 rounded-lg text-gray-400 hover:text-danger-600 hover:bg-danger-50"
                                         >
                                             <Trash2 size={15} />
                                         </button>

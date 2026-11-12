@@ -100,7 +100,7 @@ export default function AgentDetailPage() {
 
     if (loadingUser) return (
         <div className="flex items-center justify-center h-48">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info-600" />
         </div>
     )
 
@@ -118,8 +118,8 @@ export default function AgentDetailPage() {
                 <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                     <ArrowLeft size={20} className="text-gray-600" />
                 </button>
-                <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <span className="text-indigo-700 font-bold text-lg">
+                <div className="w-12 h-12 rounded-full bg-info-100 flex items-center justify-center">
+                    <span className="text-info-700 font-bold text-lg">
                         {userData.first_name?.[0]}{userData.last_name?.[0]}
                     </span>
                 </div>
@@ -143,7 +143,7 @@ export default function AgentDetailPage() {
                         key={key}
                         onClick={() => setActiveTab(key)}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === key
-                                ? 'border-indigo-600 text-indigo-600'
+                                ? 'border-info-600 text-info-600'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                     >
@@ -207,7 +207,7 @@ function CompetencesTab({ skills }: { skills: AgentSkill[] }) {
                             {[1, 2, 3, 4, 5].map(n => (
                                 <span
                                     key={n}
-                                    className={`w-2.5 h-2.5 rounded-full ${n <= skill.level ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                                    className={`w-2.5 h-2.5 rounded-full ${n <= skill.level ? 'bg-info-600' : 'bg-gray-200'}`}
                                 />
                             ))}
                         </div>
@@ -234,7 +234,7 @@ function CertificationsTab({ certifications }: { certifications: AgentCertificat
                 const expiry = cert.expiry_date ? new Date(cert.expiry_date) : null
                 const expired = expiry !== null && expiry < today
                 return (
-                    <div key={cert.id} className={`card py-4 ${expired ? 'border-l-4 border-l-red-500' : ''}`}>
+                    <div key={cert.id} className={`card py-4 ${expired ? 'border-l-4 border-l-danger-500' : ''}`}>
                         <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
                                 <p className="font-medium text-gray-900">{cert.name}</p>
@@ -243,14 +243,14 @@ function CertificationsTab({ certifications }: { certifications: AgentCertificat
                                 )}
                             </div>
                             {expired && (
-                                <span className="badge bg-red-100 text-red-700 shrink-0 flex items-center gap-1">
+                                <span className="badge bg-danger-100 text-danger-700 shrink-0 flex items-center gap-1">
                                     <AlertTriangle size={11} /> Expirée
                                 </span>
                             )}
                         </div>
                         <div className="flex flex-wrap gap-4 text-xs text-gray-500 mt-3 pt-3 border-t border-gray-50">
                             <span>Obtenue le {new Date(cert.issue_date).toLocaleDateString('fr-FR')}</span>
-                            <span className={expired ? 'text-red-600 font-medium' : ''}>
+                            <span className={expired ? 'text-danger-600 font-medium' : ''}>
                                 {expiry
                                     ? `Expire le ${expiry.toLocaleDateString('fr-FR')}`
                                     : "Sans date d'expiration"}
@@ -274,7 +274,7 @@ function PerformancesTab({ performances }: { performances: PerformanceIndicator[
         <div className="space-y-2">
             {sorted.map((perf: PerformanceIndicator) => {
                 const score = Number(perf.score)
-                const color = score >= 80 ? 'bg-green-500' : score >= 70 ? 'bg-amber-500' : 'bg-red-500'
+                const color = score >= 80 ? 'bg-success-500' : score >= 70 ? 'bg-warning-500' : 'bg-danger-500'
                 return (
                     <div key={perf.id} className="card py-4">
                         <div className="flex items-center justify-between gap-4 mb-2">
@@ -355,7 +355,7 @@ function ProbationTab({ probations }: { probations: ProbationPeriod[]; agentId?:
         <div className="card text-center py-10 text-gray-400">
             <ClipboardList size={36} className="mx-auto mb-2 opacity-30" />
             <p>Aucune période d'essai enregistrée pour cet agent</p>
-            <Link to="/probation" className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline">
+            <Link to="/probation" className="mt-3 inline-flex items-center gap-1 text-sm text-info-600 hover:underline">
                 <ExternalLink size={13} /> Voir toutes les probations
             </Link>
         </div>
@@ -364,7 +364,7 @@ function ProbationTab({ probations }: { probations: ProbationPeriod[]; agentId?:
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">{probations.length} période(s) d'essai</h2>
-                <Link to="/probation" className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                <Link to="/probation" className="text-sm text-info-600 hover:underline flex items-center gap-1">
                     <ExternalLink size={13} /> Vue complète
                 </Link>
             </div>
@@ -372,7 +372,7 @@ function ProbationTab({ probations }: { probations: ProbationPeriod[]; agentId?:
                 const status = p.probation_status as ProbationStatus
                 const daysLeft = daysUntil(p.end_date, now)
                 return (
-                    <div key={p.id} className="card border-l-4 border-l-indigo-400 space-y-3">
+                    <div key={p.id} className="card border-l-4 border-l-info-400 space-y-3">
                         <div className="flex items-center justify-between">
                             <span className="font-medium text-gray-900">Tentative #{p.attempt_number}</span>
                             <span className={`badge ${ProbationStatusColors[status]}`}>
@@ -383,7 +383,7 @@ function ProbationTab({ probations }: { probations: ProbationPeriod[]; agentId?:
                             <div><p className="text-xs text-gray-400">Début</p><p>{new Date(p.start_date).toLocaleDateString('fr-FR')}</p></div>
                             <div><p className="text-xs text-gray-400">Fin prévue</p><p>{new Date(p.end_date).toLocaleDateString('fr-FR')}</p></div>
                             {status === 'IN_PROGRESS' && daysLeft > 0 && (
-                                <div><p className="text-xs text-gray-400">Jours restants</p><p className="text-orange-600 font-semibold">{daysLeft} jours</p></div>
+                                <div><p className="text-xs text-gray-400">Jours restants</p><p className="text-warning-600 font-semibold">{daysLeft} jours</p></div>
                             )}
                             {p.actual_end_date && (
                                 <div><p className="text-xs text-gray-400">Fin effective</p><p>{new Date(p.actual_end_date).toLocaleDateString('fr-FR')}</p></div>
@@ -396,8 +396,8 @@ function ProbationTab({ probations }: { probations: ProbationPeriod[]; agentId?:
                             </div>
                         )}
                         {p.mentor_comment && (
-                            <div className="bg-blue-50 rounded-lg p-3">
-                                <p className="text-xs text-blue-400 mb-1">Commentaire mentor</p>
+                            <div className="bg-info-50 rounded-lg p-3">
+                                <p className="text-xs text-info-400 mb-1">Commentaire mentor</p>
                                 <p className="text-sm text-gray-700">{p.mentor_comment}</p>
                             </div>
                         )}
@@ -414,7 +414,7 @@ function MentoratTab({ mentorings }: { mentorings: MentoringRecord[] }) {
         <div className="card text-center py-10 text-gray-400">
             <BookOpen size={36} className="mx-auto mb-2 opacity-30" />
             <p>Aucune fiche de mentorat pour cet agent</p>
-            <Link to="/mentoring" className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline">
+            <Link to="/mentoring" className="mt-3 inline-flex items-center gap-1 text-sm text-info-600 hover:underline">
                 <ExternalLink size={13} /> Voir toutes les fiches
             </Link>
         </div>
@@ -423,14 +423,14 @@ function MentoratTab({ mentorings }: { mentorings: MentoringRecord[] }) {
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">{mentorings.length} fiche(s) de mentorat</h2>
-                <Link to="/mentoring" className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                <Link to="/mentoring" className="text-sm text-info-600 hover:underline flex items-center gap-1">
                     <ExternalLink size={13} /> Vue complète
                 </Link>
             </div>
             {mentorings.map((m: MentoringRecord) => {
                 const status = m.mentoring_status as MentoringStatus
                 return (
-                    <div key={m.id} className="card border-l-4 border-l-blue-400 space-y-3">
+                    <div key={m.id} className="card border-l-4 border-l-info-400 space-y-3">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs text-gray-400">Mentor</p>
@@ -447,8 +447,8 @@ function MentoratTab({ mentorings }: { mentorings: MentoringRecord[] }) {
                             <p className="text-sm text-gray-700">{m.objectives || '—'}</p>
                         </div>
                         {m.mentor_observations && (
-                            <div className="bg-blue-50 rounded-lg p-3">
-                                <p className="text-xs text-blue-400 mb-1">Observations du mentor</p>
+                            <div className="bg-info-50 rounded-lg p-3">
+                                <p className="text-xs text-info-400 mb-1">Observations du mentor</p>
                                 <p className="text-sm text-gray-700">{m.mentor_observations}</p>
                             </div>
                         )}
@@ -469,7 +469,7 @@ function ARCEPTab({ books }: { books: ARCEPBook[] }) {
         <div className="card text-center py-10 text-gray-400">
             <BookMarked size={36} className="mx-auto mb-2 opacity-30" />
             <p>Aucun carnet ARCEP pour cet agent</p>
-            <Link to="/arcep" className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline">
+            <Link to="/arcep" className="mt-3 inline-flex items-center gap-1 text-sm text-info-600 hover:underline">
                 <ExternalLink size={13} /> Voir tous les carnets
             </Link>
         </div>
@@ -495,7 +495,7 @@ function ARCEPBookDetail({ book }: { book: ARCEPBook }) {
         <div className="card space-y-4">
             <div className="flex items-center justify-between">
                 <div>
-                    <span className={`badge ${book.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`badge ${book.is_active ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
                         {book.is_active ? '● Actif' : '○ Inactif'}
                     </span>
                     <span className="ml-3 text-sm text-gray-500">
@@ -503,7 +503,7 @@ function ARCEPBookDetail({ book }: { book: ARCEPBook }) {
                     </span>
                 </div>
                 <div className="text-right">
-                    <p className="text-2xl font-bold text-indigo-700">{totalHours}h</p>
+                    <p className="text-2xl font-bold text-info-700">{totalHours}h</p>
                     <p className="text-xs text-gray-400">total enregistré</p>
                 </div>
             </div>
@@ -518,7 +518,7 @@ function ARCEPBookDetail({ book }: { book: ARCEPBook }) {
                                     <span className="text-gray-500 text-xs mr-2">{new Date(e.entry_date).toLocaleDateString('fr-FR')}</span>
                                     <span className="text-gray-800">{e.activity}</span>
                                 </div>
-                                <span className="font-medium text-indigo-600">{e.duration_hours}h</span>
+                                <span className="font-medium text-info-600">{e.duration_hours}h</span>
                             </div>
                         ))}
                         {entries.length > 5 && (
@@ -537,7 +537,7 @@ function RapportsTab({ reports }: { reports: Report[] }) {
         <div className="card text-center py-10 text-gray-400">
             <FileText size={36} className="mx-auto mb-2 opacity-30" />
             <p>Aucun rapport pour cet agent</p>
-            <Link to="/reports" className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline">
+            <Link to="/reports" className="mt-3 inline-flex items-center gap-1 text-sm text-info-600 hover:underline">
                 <ExternalLink size={13} /> Voir tous les rapports
             </Link>
         </div>
@@ -546,7 +546,7 @@ function RapportsTab({ reports }: { reports: Report[] }) {
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">{reports.length} rapport(s)</h2>
-                <Link to="/reports" className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                <Link to="/reports" className="text-sm text-info-600 hover:underline flex items-center gap-1">
                     <ExternalLink size={13} /> Vue complète
                 </Link>
             </div>
@@ -554,7 +554,7 @@ function RapportsTab({ reports }: { reports: Report[] }) {
                 const status = r.report_status as ReportStatus
                 const type = r.report_type as ReportType
                 return (
-                    <div key={r.id} className="card border-l-4 border-l-purple-400 space-y-2">
+                    <div key={r.id} className="card border-l-4 border-l-accent-400 space-y-2">
                         <div className="flex items-start justify-between">
                             <div>
                                 <p className="font-medium text-gray-900">{r.title}</p>
@@ -568,8 +568,8 @@ function RapportsTab({ reports }: { reports: Report[] }) {
                             <p className="text-sm text-gray-600 line-clamp-2">{r.content}</p>
                         )}
                         {r.conclusion && (
-                            <div className="bg-purple-50 rounded p-2">
-                                <p className="text-xs text-purple-400 mb-0.5">Conclusion</p>
+                            <div className="bg-accent-50 rounded p-2">
+                                <p className="text-xs text-accent-400 mb-0.5">Conclusion</p>
                                 <p className="text-sm text-gray-700">{r.conclusion}</p>
                             </div>
                         )}

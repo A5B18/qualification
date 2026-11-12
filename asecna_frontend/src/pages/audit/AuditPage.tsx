@@ -26,16 +26,16 @@ function isAdmin(user: User | null): boolean {
 
 /** Couleur par méthode HTTP, pour repérer les suppressions d'un coup d'œil. */
 const METHOD_COLORS: Record<string, string> = {
-    POST: 'bg-green-100 text-green-700',
-    PUT: 'bg-blue-100 text-blue-700',
-    PATCH: 'bg-blue-100 text-blue-700',
-    DELETE: 'bg-red-100 text-red-700',
+    POST: 'bg-success-100 text-success-700',
+    PUT: 'bg-info-100 text-info-700',
+    PATCH: 'bg-info-100 text-info-700',
+    DELETE: 'bg-danger-100 text-danger-700',
 }
 
 function statusColor(code: number): string {
-    if (code >= 500) return 'text-red-700 font-semibold'
-    if (code >= 400) return 'text-amber-700'
-    return 'text-green-700'
+    if (code >= 500) return 'text-danger-700 font-semibold'
+    if (code >= 400) return 'text-warning-700'
+    return 'text-success-700'
 }
 
 function formatInstant(value: string): string {
@@ -112,7 +112,7 @@ export default function AuditPage() {
                 <p className="text-sm text-gray-500 mt-1">
                     Traçabilité des actions sensibles et des connexions.
                     {failedLogins > 0 && (
-                        <span className="text-red-600 ml-2">
+                        <span className="text-danger-600 ml-2">
                             {failedLogins} tentative(s) de connexion échouée(s)
                         </span>
                     )}
@@ -237,11 +237,11 @@ export default function AuditPage() {
                                                 </td>
                                                 <td className="px-5 py-2.5">
                                                     {entry.result === 'SUCCESS' ? (
-                                                        <span className="text-green-700 flex items-center gap-1.5 text-xs">
+                                                        <span className="text-success-700 flex items-center gap-1.5 text-xs">
                                                             <CheckCircle2 size={13} /> Succès
                                                         </span>
                                                     ) : (
-                                                        <span className="text-red-700 flex items-center gap-1.5 text-xs">
+                                                        <span className="text-danger-700 flex items-center gap-1.5 text-xs">
                                                             <XCircle size={13} /> Échec
                                                         </span>
                                                     )}

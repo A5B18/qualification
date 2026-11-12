@@ -15,9 +15,9 @@ const STATUS_LABELS: Record<string, string> = {
 }
 const STATUS_COLORS: Record<string, string> = {
     DRAFT: 'bg-gray-100 text-gray-600',
-    SUBMITTED: 'bg-blue-100 text-blue-700',
-    APPROVED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
+    SUBMITTED: 'bg-info-100 text-info-700',
+    APPROVED: 'bg-success-100 text-success-700',
+    REJECTED: 'bg-danger-100 text-danger-700',
 }
 const TYPE_LABELS: Record<string, string> = {
     ASSESSMENT: 'Bilan', INCIDENT: 'Incident', PROGRESS: 'Avancement', OTHER: 'Autre',
@@ -84,20 +84,20 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <FileText size={24} className="text-indigo-600" /> Rapports
+                        <FileText size={24} className="text-info-600" /> Rapports
                     </h1>
                     <p className="text-gray-400 text-sm mt-0.5">{reportsData?.count ?? 0} rapports · {pending} en attente</p>
                 </div>
                 {canCreate(user) && (
                     <button onClick={() => setShowCreate(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors">
+                        className="flex items-center gap-2 px-4 py-2 bg-info-600 hover:bg-info-700 text-white rounded-xl text-sm font-medium transition-colors">
                         <Plus size={16} /> Nouveau rapport
                     </button>
                 )}
             </div>
 
             {flash && (
-                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-success-50 border-success-200 text-success-800' : 'bg-danger-50 border-danger-200 text-danger-800'}`}>
                     {flash.text}
                 </div>
             )}
@@ -107,7 +107,7 @@ export default function ReportsPage() {
                 {(['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'] as const).filter(s => s !== 'ALL').map(s => (
                     <button key={s}
                         onClick={() => setStatusFilter(s === statusFilter ? 'ALL' : s)}
-                        className={`rounded-xl border p-4 text-left transition-all ${statusFilter === s ? 'ring-2 ring-indigo-500 ' : ''}${STATUS_COLORS[s].replace('text-', 'border-').split(' ')[0]} ${STATUS_COLORS[s]}`}>
+                        className={`rounded-xl border p-4 text-left transition-all ${statusFilter === s ? 'ring-2 ring-info-500 ' : ''}${STATUS_COLORS[s].replace('text-', 'border-').split(' ')[0]} ${STATUS_COLORS[s]}`}>
                         <div className="text-2xl font-bold">
                             {(reportsData?.results ?? []).filter((r: Report) => r.report_status === s).length}
                         </div>
@@ -120,7 +120,7 @@ export default function ReportsPage() {
             <div className="flex gap-2 flex-wrap">
                 {['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'].map(s => (
                     <button key={s} onClick={() => setStatusFilter(s)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === s ? 'bg-info-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                         {s === 'ALL' ? 'Tous' : STATUS_LABELS[s]}
                     </button>
                 ))}
@@ -128,16 +128,16 @@ export default function ReportsPage() {
 
             {/* Alerte rapports soumis */}
             {pending > 0 && canApprove(user) && (
-                <div className="flex items-center gap-3 p-3 bg-blue-50 border-l-4 border-blue-500 rounded-xl text-sm">
-                    <AlertTriangle size={16} className="text-blue-600" />
-                    <span className="text-blue-800 font-medium">{pending} rapport(s) en attente d'approbation</span>
+                <div className="flex items-center gap-3 p-3 bg-info-50 border-l-4 border-info-500 rounded-xl text-sm">
+                    <AlertTriangle size={16} className="text-info-600" />
+                    <span className="text-info-800 font-medium">{pending} rapport(s) en attente d'approbation</span>
                 </div>
             )}
 
             {/* Table */}
             <div className="card p-0 overflow-hidden">
                 {isLoading ? (
-                    <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
+                    <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info-600" /></div>
                 ) : reports.length === 0 ? (
                     <div className="text-center py-16 text-gray-400">
                         <FileText size={40} className="mx-auto mb-2 opacity-30" />
@@ -158,7 +158,7 @@ export default function ReportsPage() {
                                     <td className="px-5 py-3.5 font-medium text-gray-900 max-w-[200px] truncate">{r.title}</td>
                                     <td className="px-5 py-3.5 text-gray-500 text-xs">{TYPE_LABELS[r.report_type] ?? r.report_type}</td>
                                     <td className="px-5 py-3.5">
-                                        <Link to={`/agents/${r.agent}`} className="text-indigo-600 font-mono text-xs hover:underline">
+                                        <Link to={`/agents/${r.agent}`} className="text-info-600 font-mono text-xs hover:underline">
                                             {r.agent_detail?.matricule ?? `#${r.agent}`}
                                         </Link>
                                     </td>
@@ -179,18 +179,18 @@ export default function ReportsPage() {
                                         <div className="flex items-center gap-2">
                                             {r.report_status === 'DRAFT' && (
                                                 <button onClick={() => submitMut.mutate(r.id)}
-                                                    className="text-xs flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg">
+                                                    className="text-xs flex items-center gap-1 px-2 py-1 bg-info-100 text-info-700 hover:bg-info-200 rounded-lg">
                                                     <Send size={10} /> Soumettre
                                                 </button>
                                             )}
                                             {r.report_status === 'SUBMITTED' && canApprove(user) && (
                                                 <>
                                                     <button onClick={() => approveMut.mutate(r.id)}
-                                                        className="text-xs flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg">
+                                                        className="text-xs flex items-center gap-1 px-2 py-1 bg-success-100 text-success-700 hover:bg-success-200 rounded-lg">
                                                         <CheckCircle size={10} /> Approuver
                                                     </button>
                                                     <button onClick={() => { setRejectId(r.id); setRejectReason('') }}
-                                                        className="text-xs flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg">
+                                                        className="text-xs flex items-center gap-1 px-2 py-1 bg-danger-100 text-danger-700 hover:bg-danger-200 rounded-lg">
                                                         <XCircle size={10} /> Rejeter
                                                     </button>
                                                 </>
@@ -216,7 +216,7 @@ export default function ReportsPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Agent concerné *</label>
                                 <select required value={form.agent} onChange={e => setForm(f => ({ ...f, agent: e.target.value }))}
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-info-500">
                                     <option value="">— Choisir un agent —</option>
                                     {agents.map((a: User) => (
                                         <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.matricule})</option>
@@ -226,7 +226,7 @@ export default function ReportsPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Type de rapport *</label>
                                 <select value={form.report_type} onChange={e => setForm(f => ({ ...f, report_type: e.target.value }))}
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-info-500">
                                     {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                 </select>
                             </div>
@@ -234,24 +234,24 @@ export default function ReportsPage() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Titre *</label>
                                 <input required type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                                     placeholder="Ex: Bilan périodique — T1 2024"
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-info-500" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Contenu</label>
                                 <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                                     rows={4} placeholder="Corps du rapport..."
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-info-500" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Conclusion</label>
                                 <textarea value={form.conclusion} onChange={e => setForm(f => ({ ...f, conclusion: e.target.value }))}
                                     rows={2} placeholder="Conclusion et recommandations..."
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-info-500" />
                             </div>
                             <div className="flex gap-3 justify-end pt-2">
                                 <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Annuler</button>
                                 <button type="submit" disabled={createMut.isPending}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl disabled:opacity-50">
+                                    className="px-4 py-2 text-sm font-medium text-white bg-info-600 hover:bg-info-700 rounded-xl disabled:opacity-50">
                                     {createMut.isPending ? 'Création...' : 'Créer le rapport'}
                                 </button>
                             </div>
@@ -270,12 +270,12 @@ export default function ReportsPage() {
                         </div>
                         <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
                             rows={4} placeholder="Expliquer pourquoi ce rapport est rejeté..."
-                            className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500" />
+                            className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-danger-500" />
                         <div className="flex gap-3 mt-4 justify-end">
                             <button onClick={() => setRejectId(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Annuler</button>
                             <button disabled={!rejectReason.trim() || rejectMut.isPending}
                                 onClick={() => rejectMut.mutate({ id: rejectId!, reason: rejectReason })}
-                                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-xl disabled:opacity-40">Confirmer</button>
+                                className="px-4 py-2 text-sm text-white bg-danger-600 hover:bg-danger-700 rounded-xl disabled:opacity-40">Confirmer</button>
                         </div>
                     </div>
                 </div>

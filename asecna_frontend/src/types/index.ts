@@ -80,12 +80,35 @@ export const AgentStatusLabels: Record<AgentStatus, string> = {
 
 export const AgentStatusColors: Record<AgentStatus, string> = {
     NEW: 'bg-gray-100 text-gray-700',
-    PROBATION: 'bg-yellow-100 text-yellow-700',
-    MENTORED: 'bg-blue-100 text-blue-700',
-    TRAINEE: 'bg-purple-100 text-purple-700',
-    QUALIFIED: 'bg-green-100 text-green-700',
-    SUSPENDED: 'bg-red-100 text-red-700',
+    PROBATION: 'bg-warning-100 text-warning-700',
+    MENTORED: 'bg-info-100 text-info-700',
+    TRAINEE: 'bg-accent-100 text-accent-700',
+    QUALIFIED: 'bg-success-100 text-success-700',
+    SUSPENDED: 'bg-danger-100 text-danger-700',
     RETIRED: 'bg-gray-200 text-gray-600',
+}
+
+/**
+ * Couleurs des sept statuts pour les graphiques.
+ *
+ * Recharts peint ses barres en CSS inline : il lui faut une valeur, pas une
+ * classe utilitaire. Ces teintes sont les nuances 500 des mêmes familles que
+ * `AgentStatusColors`, afin qu'une barre et la pastille correspondante
+ * portent la même couleur.
+ *
+ * Le tableau de bord redéfinissait sa propre liste de statuts : c'est ainsi
+ * que « Retraité » avait été oublié et que le graphique n'en montrait que
+ * six. Toute barre se dérive désormais de `AgentStatusLabels`, qui couvre les
+ * sept par construction.
+ */
+export const AgentStatusChartColors: Record<AgentStatus, string> = {
+    NEW: '#64748b',        // ardoise 500
+    PROBATION: '#f59e0b',  // ambre 500
+    MENTORED: '#0284c7',   // ciel 500
+    TRAINEE: '#8b5cf6',    // violet 500
+    QUALIFIED: '#10b981',  // émeraude 500
+    SUSPENDED: '#ef4444',  // rouge 500
+    RETIRED: '#cbd5e1',    // ardoise 300
 }
 
 export interface Unit {
@@ -117,9 +140,9 @@ export const ProbationStatusLabels: Record<ProbationStatus, string> = {
 }
 
 export const ProbationStatusColors: Record<ProbationStatus, string> = {
-    IN_PROGRESS: 'bg-blue-100 text-blue-700',
-    PASSED: 'bg-green-100 text-green-700',
-    FAILED: 'bg-red-100 text-red-700',
+    IN_PROGRESS: 'bg-info-100 text-info-700',
+    PASSED: 'bg-success-100 text-success-700',
+    FAILED: 'bg-danger-100 text-danger-700',
     CANCELLED: 'bg-gray-100 text-gray-700',
 }
 
@@ -155,10 +178,10 @@ export const MentoringStatusLabels: Record<MentoringStatus, string> = {
 
 export const MentoringStatusColors: Record<MentoringStatus, string> = {
     DRAFT: 'bg-gray-100 text-gray-700',
-    SUBMITTED: 'bg-yellow-100 text-yellow-700',
-    APPROVED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
-    COMPLETED: 'bg-blue-100 text-blue-700',
+    SUBMITTED: 'bg-warning-100 text-warning-700',
+    APPROVED: 'bg-success-100 text-success-700',
+    REJECTED: 'bg-danger-100 text-danger-700',
+    COMPLETED: 'bg-info-100 text-info-700',
 }
 
 export interface MentoringRecord {
@@ -199,9 +222,9 @@ export const ReportStatusLabels: Record<ReportStatus, string> = {
 
 export const ReportStatusColors: Record<ReportStatus, string> = {
     DRAFT: 'bg-gray-100 text-gray-700',
-    SUBMITTED: 'bg-yellow-100 text-yellow-700',
-    APPROVED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
+    SUBMITTED: 'bg-warning-100 text-warning-700',
+    APPROVED: 'bg-success-100 text-success-700',
+    REJECTED: 'bg-danger-100 text-danger-700',
 }
 
 export interface Report {
@@ -328,8 +351,8 @@ export const ExamStatusLabels: Record<ExamStatus, string> = {
 
 export const ExamStatusColors: Record<ExamStatus, string> = {
     DRAFT: 'bg-gray-100 text-gray-700',
-    PUBLISHED: 'bg-green-100 text-green-700',
-    CLOSED: 'bg-red-100 text-red-700',
+    PUBLISHED: 'bg-success-100 text-success-700',
+    CLOSED: 'bg-danger-100 text-danger-700',
 }
 
 export interface Exam {
@@ -361,11 +384,11 @@ export const SessionStatusLabels: Record<SessionStatus, string> = {
 
 export const SessionStatusColors: Record<SessionStatus, string> = {
     IN_PROGRESS: 'bg-gray-100 text-gray-700',
-    SUBMITTED: 'bg-amber-100 text-amber-700',
-    CORRECTING: 'bg-blue-100 text-blue-700',
-    PENDING_APPROVAL: 'bg-purple-100 text-purple-700',
-    GRADED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
+    SUBMITTED: 'bg-warning-100 text-warning-700',
+    CORRECTING: 'bg-info-100 text-info-700',
+    PENDING_APPROVAL: 'bg-accent-100 text-accent-700',
+    GRADED: 'bg-success-100 text-success-700',
+    REJECTED: 'bg-danger-100 text-danger-700',
 }
 
 export interface ExamSession {
@@ -561,9 +584,9 @@ export const WorkflowStatusLabels: Record<WorkflowStatus, string> = {
 
 export const WorkflowStatusColors: Record<WorkflowStatus, string> = {
     DRAFT: 'bg-gray-100 text-gray-700',
-    SUBMITTED: 'bg-amber-100 text-amber-700',
-    APPROVED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
+    SUBMITTED: 'bg-warning-100 text-warning-700',
+    APPROVED: 'bg-success-100 text-success-700',
+    REJECTED: 'bg-danger-100 text-danger-700',
 }
 
 /** Modules raccordés au registre, tels que le backend les nomme. */

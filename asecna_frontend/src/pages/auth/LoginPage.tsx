@@ -76,9 +76,9 @@ export default function LoginPage() {
                     <p className="text-white/50 text-sm mb-6">Entrez vos identifiants ASECNA</p>
 
                     {error && (
-                        <div className="bg-red-500/20 border border-red-400/40 rounded-xl p-3 mb-5 flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
-                            <p className="text-red-200 text-sm">{error}</p>
+                        <div className="bg-danger-500/20 border border-danger-400/40 rounded-xl p-3 mb-5 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-danger-400 flex-shrink-0" />
+                            <p className="text-danger-200 text-sm">{error}</p>
                         </div>
                     )}
 
@@ -128,7 +128,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading || !matricule || !password}
-                            className="w-full bg-asecna-600 hover:bg-asecna-500 active:bg-asecna-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 mt-1 shadow-lg shadow-asecna-900/50"
+                            className="w-full bg-asecna-600 hover:bg-asecna-700 active:bg-asecna-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 mt-1 shadow-lg shadow-asecna-900/50"
                         >
                             {loading ? (
                                 <>

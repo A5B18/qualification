@@ -15,9 +15,9 @@ const STATUS_LABELS: Record<string, string> = {
     IN_PROGRESS: 'En cours', PASSED: 'Réussie ✓', FAILED: 'Échouée',
 }
 const STATUS_COLORS: Record<string, string> = {
-    IN_PROGRESS: 'bg-blue-100 text-blue-700',
-    PASSED: 'bg-green-100 text-green-700',
-    FAILED: 'bg-red-100 text-red-700',
+    IN_PROGRESS: 'bg-info-100 text-info-700',
+    PASSED: 'bg-success-100 text-success-700',
+    FAILED: 'bg-danger-100 text-danger-700',
 }
 
 function canCreate(user: User | null) {
@@ -97,29 +97,29 @@ export default function ProbationPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <ClipboardList size={24} className="text-amber-600" /> Périodes d'essai
+                        <ClipboardList size={24} className="text-warning-600" /> Périodes d'essai
                     </h1>
                     <p className="text-gray-400 text-sm mt-0.5">{data?.count ?? 0} périodes enregistrées</p>
                 </div>
                 {canCreate(user) && (
                     <button onClick={() => setShowCreate(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-medium transition-colors">
+                        className="flex items-center gap-2 px-4 py-2 bg-warning-600 hover:bg-warning-700 text-white rounded-xl text-sm font-medium transition-colors">
                         <Plus size={16} /> Nouvelle période
                     </button>
                 )}
             </div>
 
             {flash && (
-                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-success-50 border-success-200 text-success-800' : 'bg-danger-50 border-danger-200 text-danger-800'}`}>
                     {flash.text}
                 </div>
             )}
 
             {/* Alerte J-14 */}
             {dueAlert.length > 0 && (
-                <div className="flex items-center gap-3 p-3 bg-red-50 border-l-4 border-red-500 rounded-xl text-sm">
-                    <AlertTriangle size={16} className="text-red-600 flex-shrink-0" />
-                    <span className="text-red-800 font-medium">
+                <div className="flex items-center gap-3 p-3 bg-danger-50 border-l-4 border-danger-500 rounded-xl text-sm">
+                    <AlertTriangle size={16} className="text-danger-600 flex-shrink-0" />
+                    <span className="text-danger-800 font-medium">
                         ⚠️ {dueAlert.length} période(s) d'essai se terminent dans moins de 14 jours — Évaluation requise !
                     </span>
                 </div>
@@ -128,12 +128,12 @@ export default function ProbationPage() {
             {/* KPIs */}
             <div className="grid grid-cols-3 gap-4">
                 {[
-                    { label: 'En cours', value: inProgress, s: 'IN_PROGRESS', color: 'bg-blue-50 border-blue-200 text-blue-700' },
-                    { label: 'Réussies', value: passed, s: 'PASSED', color: 'bg-green-50 border-green-200 text-green-700' },
-                    { label: 'Échouées', value: failed, s: 'FAILED', color: 'bg-red-50 border-red-200 text-red-700' },
+                    { label: 'En cours', value: inProgress, s: 'IN_PROGRESS', color: 'bg-info-50 border-info-200 text-info-700' },
+                    { label: 'Réussies', value: passed, s: 'PASSED', color: 'bg-success-50 border-success-200 text-success-700' },
+                    { label: 'Échouées', value: failed, s: 'FAILED', color: 'bg-danger-50 border-danger-200 text-danger-700' },
                 ].map(({ label, value, s, color }) => (
                     <button key={s} onClick={() => setStatusFilter(statusFilter === s ? 'ALL' : s)}
-                        className={`rounded-xl border p-4 text-left transition-all ${color} ${statusFilter === s ? 'ring-2 ring-offset-1 ring-amber-400' : ''}`}>
+                        className={`rounded-xl border p-4 text-left transition-all ${color} ${statusFilter === s ? 'ring-2 ring-offset-1 ring-warning-400' : ''}`}>
                         <div className="text-2xl font-bold">{value}</div>
                         <div className="text-sm">{label}</div>
                     </button>
@@ -144,7 +144,7 @@ export default function ProbationPage() {
             <div className="card p-0 overflow-hidden">
                 {isLoading ? (
                     <div className="flex items-center justify-center h-40">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-warning-600" />
                     </div>
                 ) : probations.length === 0 ? (
                     <div className="text-center py-12 text-gray-400">
@@ -165,7 +165,7 @@ export default function ProbationPage() {
                                 const daysLeft = daysUntil(p.end_date, now)
                                 const urgent = isWithinAlertWindow(daysLeft) && p.probation_status === 'IN_PROGRESS'
                                 return (
-                                    <tr key={p.id} className={`hover:bg-gray-50 ${urgent ? 'bg-red-50/50' : ''}`}>
+                                    <tr key={p.id} className={`hover:bg-gray-50 ${urgent ? 'bg-danger-50/50' : ''}`}>
                                         <td className="px-5 py-3.5">
                                             <Link to={`/agents/${p.agent}`} className="font-medium text-asecna-700 hover:underline font-mono text-xs">
                                                 {p.agent_detail?.matricule ?? `#${p.agent}`}
@@ -179,14 +179,14 @@ export default function ProbationPage() {
                                         <td className="px-5 py-3.5 text-gray-600">{new Date(p.end_date).toLocaleDateString('fr-FR')}</td>
                                         <td className="px-5 py-3.5">
                                             {p.probation_status === 'IN_PROGRESS' && daysLeft > 0 ? (
-                                                <span className={`font-bold ${urgent ? 'text-red-600' : daysLeft < 30 ? 'text-orange-500' : 'text-gray-600'}`}>
+                                                <span className={`font-bold ${urgent ? 'text-danger-600' : daysLeft < 30 ? 'text-warning-500' : 'text-gray-600'}`}>
                                                     {urgent && '⚠️ '}{daysLeft}j
                                                 </span>
                                             ) : '—'}
                                         </td>
                                         <td className="px-5 py-3.5">
                                             {p.score != null ? (
-                                                <span className={`font-semibold flex items-center gap-1 ${Number(p.score) >= 70 ? 'text-green-600' : 'text-red-500'}`}>
+                                                <span className={`font-semibold flex items-center gap-1 ${Number(p.score) >= 70 ? 'text-success-600' : 'text-danger-500'}`}>
                                                     <Star size={12} /> {p.score}/100
                                                 </span>
                                             ) : '—'}
@@ -200,7 +200,7 @@ export default function ProbationPage() {
                                             {p.probation_status === 'IN_PROGRESS' && canFinalize(user) && (
                                                 <button
                                                     onClick={() => { setFinalizeId(p.id); setScore(70); setComment('') }}
-                                                    className="text-xs flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg">
+                                                    className="text-xs flex items-center gap-1 px-2 py-1 bg-warning-100 text-warning-700 hover:bg-warning-200 rounded-lg">
                                                     <CheckCircle size={11} /> Évaluer
                                                 </button>
                                             )}
@@ -225,7 +225,7 @@ export default function ProbationPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Agent *</label>
                                 <select required value={createForm.agent} onChange={e => setCreateForm(f => ({ ...f, agent: e.target.value }))}
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warning-500">
                                     <option value="">— Choisir —</option>
                                     {agents.map((a: User) => (
                                         <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.matricule})</option>
@@ -237,19 +237,19 @@ export default function ProbationPage() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Date début *</label>
                                     <input required type="date" value={createForm.start_date}
                                         onChange={e => setCreateForm(f => ({ ...f, start_date: e.target.value }))}
-                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warning-500" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Date fin *</label>
                                     <input required type="date" value={createForm.end_date}
                                         onChange={e => setCreateForm(f => ({ ...f, end_date: e.target.value }))}
-                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warning-500" />
                                 </div>
                             </div>
                             <div className="flex gap-3 justify-end pt-2">
                                 <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Annuler</button>
                                 <button type="submit" disabled={createMut.isPending}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-xl disabled:opacity-50">
+                                    className="px-4 py-2 text-sm font-medium text-white bg-warning-600 hover:bg-warning-700 rounded-xl disabled:opacity-50">
                                     {createMut.isPending ? 'Création...' : 'Créer'}
                                 </button>
                             </div>
@@ -269,12 +269,12 @@ export default function ProbationPage() {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Score final : <span className={`font-bold text-lg ${score >= 70 ? 'text-green-600' : 'text-red-500'}`}>{score}/100</span>
-                                    {score < 70 && <span className="ml-2 text-xs text-red-500">(Échec — seuil 70/100)</span>}
+                                    Score final : <span className={`font-bold text-lg ${score >= 70 ? 'text-success-600' : 'text-danger-500'}`}>{score}/100</span>
+                                    {score < 70 && <span className="ml-2 text-xs text-danger-500">(Échec — seuil 70/100)</span>}
                                 </label>
                                 <input type="range" min={0} max={100} value={score}
                                     onChange={e => setScore(Number(e.target.value))}
-                                    className="w-full accent-amber-500" />
+                                    className="w-full accent-warning-500" />
                                 <div className="flex justify-between text-xs text-gray-400 mt-1">
                                     <span>0</span><span>50</span><span>100</span>
                                 </div>
@@ -283,14 +283,14 @@ export default function ProbationPage() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Commentaire</label>
                                 <textarea value={comment} onChange={e => setComment(e.target.value)}
                                     rows={3} placeholder="Observations sur la période d'essai..."
-                                    className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                                    className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-warning-500" />
                             </div>
                             {score >= 70 ? (
-                                <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                                <div className="p-3 bg-success-50 border border-success-200 rounded-xl text-sm text-success-700">
                                     ✅ L'agent sera marqué comme <strong>Réussi</strong> — statut mis à jour.
                                 </div>
                             ) : (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                                <div className="p-3 bg-danger-50 border border-danger-200 rounded-xl text-sm text-danger-700">
                                     ⚠️ Score inférieur à 70/100 — La période d'essai sera marquée comme <strong>Échouée</strong>.
                                 </div>
                             )}
@@ -300,7 +300,7 @@ export default function ProbationPage() {
                             <button
                                 disabled={finalizeMut.isPending}
                                 onClick={() => finalizeMut.mutate({ id: finalizeId!, score, comment })}
-                                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-xl disabled:opacity-50">
+                                className="px-4 py-2 text-sm font-medium text-white bg-warning-600 hover:bg-warning-700 rounded-xl disabled:opacity-50">
                                 {finalizeMut.isPending ? 'Enregistrement...' : 'Valider l\'évaluation'}
                             </button>
                         </div>

@@ -85,7 +85,7 @@ export default function ProfilePage() {
             </div>
 
             {flash && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-success-50 text-success-800 border border-success-200' : 'bg-danger-50 text-danger-800 border border-danger-200'}`}>
                     {flash.text}
                 </div>
             )}
@@ -208,12 +208,12 @@ export default function ProfilePage() {
                     </div>
                 </div>
                 {tooShort && (
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-danger-600">
                         Le nouveau mot de passe doit faire au moins {MIN_PASSWORD_LENGTH} caractères.
                     </p>
                 )}
                 {mismatch && (
-                    <p className="text-xs text-red-600">La confirmation ne correspond pas.</p>
+                    <p className="text-xs text-danger-600">La confirmation ne correspond pas.</p>
                 )}
                 <button
                     type="submit"

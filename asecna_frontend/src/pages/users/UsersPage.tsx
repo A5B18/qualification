@@ -154,32 +154,32 @@ export default function UsersPage() {
             </div>
 
             {flash && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-success-50 text-success-800 border border-success-200' : 'bg-danger-50 text-danger-800 border border-danger-200'}`}>
                     {flash.text}
                 </div>
             )}
 
             {tempPassword && (
-                <div className="rounded-lg px-4 py-3 bg-amber-50 border border-amber-200">
-                    <p className="text-sm text-amber-900 flex items-center gap-2">
+                <div className="rounded-lg px-4 py-3 bg-warning-50 border border-warning-200">
+                    <p className="text-sm text-warning-900 flex items-center gap-2">
                         <AlertTriangle size={15} />
                         Mot de passe temporaire de <strong>{tempPassword.matricule}</strong> —
                         à transmettre à l'agent de la main à la main.
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                        <code className="px-3 py-1.5 rounded bg-white border border-amber-200 font-mono text-sm">
+                        <code className="px-3 py-1.5 rounded bg-white border border-warning-200 font-mono text-sm">
                             {tempPassword.value}
                         </code>
                         <button
                             onClick={() => navigator.clipboard?.writeText(tempPassword.value)}
-                            className="p-1.5 rounded hover:bg-amber-100 text-amber-700"
+                            className="p-1.5 rounded hover:bg-warning-100 text-warning-700"
                             title="Copier"
                         >
                             <Copy size={14} />
                         </button>
                         <button
                             onClick={() => setTempPassword(null)}
-                            className="text-xs text-amber-700 hover:underline ml-2"
+                            className="text-xs text-warning-700 hover:underline ml-2"
                         >
                             Masquer
                         </button>
@@ -202,7 +202,7 @@ export default function UsersPage() {
                                 className="w-full border border-gray-200 rounded-lg p-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-asecna-500"
                             />
                             {form.matricule && !matriculeValid && (
-                                <p className="text-xs text-red-600 mt-1">Format attendu : ASE-AAAA-NNNN</p>
+                                <p className="text-xs text-danger-600 mt-1">Format attendu : ASE-AAAA-NNNN</p>
                             )}
                         </div>
                         <div>
@@ -298,7 +298,7 @@ export default function UsersPage() {
                                                 </span>
                                             )}
                                             {u.is_active === false && (
-                                                <span className="badge text-xs bg-red-100 text-red-700">Désactivé</span>
+                                                <span className="badge text-xs bg-danger-100 text-danger-700">Désactivé</span>
                                             )}
                                         </div>
                                         <p className="text-xs text-gray-500 mt-0.5">
@@ -318,7 +318,7 @@ export default function UsersPage() {
                                                     <button
                                                         onClick={() => revokeMut.mutate({ id: u.id, role })}
                                                         title="Révoquer ce rôle"
-                                                        className="hover:text-red-600"
+                                                        className="hover:text-danger-600"
                                                     >
                                                         <X size={11} />
                                                     </button>
@@ -365,7 +365,7 @@ export default function UsersPage() {
                                             <button
                                                 onClick={() => deactivateMut.mutate(u.id)}
                                                 disabled={deactivateMut.isPending}
-                                                className="px-3 py-1.5 rounded-lg text-xs bg-white border border-red-200 text-red-700 hover:bg-red-50 flex items-center gap-1.5"
+                                                className="px-3 py-1.5 rounded-lg text-xs bg-white border border-danger-200 text-danger-700 hover:bg-danger-50 flex items-center gap-1.5"
                                                 title="Désactiver le compte (suppression douce)"
                                             >
                                                 <UserMinus size={13} /> Désactiver

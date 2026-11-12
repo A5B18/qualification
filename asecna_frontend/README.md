@@ -130,6 +130,54 @@ commune est dans `src/test/setup.ts`.
 
 ---
 
+## 🎨 Couleurs
+
+Onze familles de couleurs cohabitaient : trois quasi identiques (`asecna`,
+`indigo`, `blue`), deux violets, trois tons chauds et deux verts. Deux
+éléments de même nature portaient des couleurs différentes d'un écran à
+l'autre. L'ensemble tient désormais en **six familles**, définies dans le bloc
+`@theme` de [`src/index.css`](src/index.css) — seule source de vérité.
+
+| Famille | Teinte | Emploi |
+|---|---|---|
+| `asecna-*` | sarcelle | Marque : navigation, actions principales, liens |
+| `success-*` | émeraude | Approuvé, qualifié, réussi, publié |
+| `warning-*` | ambre | En attente, en cours, en retard, brouillon |
+| `danger-*` | rouge | Échoué, suspendu, rejeté, expiré |
+| `info-*` | ciel | Mentorat, rapports, bandeaux d'information |
+| `accent-*` | violet | Évaluations et formations |
+
+Le gris de Tailwind reste utilisé pour les neutres. **N'employez pas
+`bg-green-*`, `text-blue-*` ou leurs voisins directement** : passez par la
+famille sémantique, sans quoi la dispersion reviendra.
+
+### Lisibilité
+
+Les échelles sont décalées d'un cran par rapport à celles de Tailwind pour que
+la nuance **600** — celle que portent les boutons à texte blanc — atteigne le
+rapport 4,5:1 exigé par WCAG AA. Le sarcelle 600 de Tailwind (`#0d9488`) ne
+plafonne qu'à 3,9:1 : son libellé blanc serait illisible pour une partie des
+utilisateurs.
+
+Contraste mesuré sur blanc : sarcelle 5,47 · émeraude 5,48 · rouge 4,83
+· ciel 5,93 · violet 5,70. L'ambre ne porte jamais de texte blanc ; son texte
+prend la nuance 700 (5,02 sur blanc).
+
+### Graphiques
+
+Recharts peint ses barres en CSS inline : il lui faut une valeur, pas une
+classe. `AgentStatusChartColors` ([`src/types/index.ts`](src/types/index.ts))
+donne les nuances 500 des mêmes familles, pour qu'une barre et sa pastille
+portent la même couleur. Le graphique se dérive de `AgentStatusLabels` : un
+statut ajouté au backend y apparaît sans toucher au tableau de bord.
+
+> `tailwind.config.js` ne définit **aucune** couleur. En Tailwind 4 il n'est lu
+> que si une directive `@config` le désigne depuis le CSS, ce qui n'est pas le
+> cas : il dupliquait la palette sans effet, et les deux définitions avaient
+> divergé.
+
+---
+
 ## 🔀 Registre d'approbation
 
 L'écran `/workflows` lit `ApprovalWorkflow`, le registre transversal alimenté

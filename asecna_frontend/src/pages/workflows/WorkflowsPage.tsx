@@ -87,7 +87,7 @@ function WorkflowRow({ entry }: { entry: ApprovalWorkflow }) {
                             {entry.module_label ?? '—'}
                         </span>
                         {target?.deleted && (
-                            <span className="badge bg-red-50 text-red-600 text-xs flex items-center gap-1">
+                            <span className="badge bg-danger-50 text-danger-600 text-xs flex items-center gap-1">
                                 <AlertTriangle size={10} /> objet supprimé
                             </span>
                         )}
@@ -108,14 +108,14 @@ function WorkflowRow({ entry }: { entry: ApprovalWorkflow }) {
                             </span>
                         )}
                         {status === 'APPROVED' && decidedBy && (
-                            <span className="flex items-center gap-1 text-green-600">
+                            <span className="flex items-center gap-1 text-success-600">
                                 <CheckCircle2 size={11} />
                                 Approuvé par {decidedBy}
                                 {entry.approved_at && ` le ${formatDate(entry.approved_at)}`}
                             </span>
                         )}
                         {status === 'REJECTED' && decidedBy && (
-                            <span className="flex items-center gap-1 text-red-600">
+                            <span className="flex items-center gap-1 text-danger-600">
                                 <XCircle size={11} />
                                 Rejeté par {decidedBy}
                                 {entry.rejected_at && ` le ${formatDate(entry.rejected_at)}`}

@@ -121,13 +121,21 @@ const ROLE_LABELS: Record<string, string> = {
     agent: 'Agent',
 }
 
+/**
+ * Une teinte distincte par role : la pastille du menu lateral est le seul
+ * repere permanent du role avec lequel on est connecte.
+ *
+ * Approbateur et mentor se sont retrouves de la meme couleur lors de la
+ * refonte de la palette — l'un etait indigo, l'autre bleu, deux familles
+ * fusionnees depuis en `info`. Le mentor passe au vert, qui restait libre.
+ */
 const ROLE_COLORS: Record<string, string> = {
-    admin: 'bg-red-500/20 text-red-300',
+    admin: 'bg-danger-500/20 text-danger-300',
     unit_chief: 'bg-asecna-500/20 text-asecna-300',
-    approver: 'bg-indigo-500/20 text-indigo-300',
-    evaluator: 'bg-yellow-500/20 text-yellow-300',
-    mentor: 'bg-blue-500/20 text-blue-300',
-    instructor: 'bg-violet-500/20 text-violet-300',
+    approver: 'bg-info-500/20 text-info-300',
+    evaluator: 'bg-warning-500/20 text-warning-300',
+    mentor: 'bg-success-500/20 text-success-300',
+    instructor: 'bg-accent-500/20 text-accent-300',
     agent: 'bg-gray-500/20 text-gray-300',
 }
 
@@ -259,7 +267,7 @@ export default function Layout() {
                     )}
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg w-full text-sm transition-colors"
+                        className="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-danger-400 hover:bg-danger-950/30 rounded-lg w-full text-sm transition-colors"
                         title="Déconnexion"
                     >
                         <LogOut size={16} className="flex-shrink-0" />

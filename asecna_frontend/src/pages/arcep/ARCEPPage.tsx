@@ -66,28 +66,28 @@ export default function ARCEPPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <BookMarked size={24} className="text-emerald-600" /> Carnets ARCEP
+                    <BookMarked size={24} className="text-success-600" /> Carnets ARCEP
                 </h1>
                 <p className="text-gray-400 text-sm mt-0.5">{booksData?.count ?? 0} carnets · {totalHoursAll}h cumulées</p>
             </div>
 
             {flash && (
-                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-success-50 border-success-200 text-success-800' : 'bg-danger-50 border-danger-200 text-danger-800'}`}>
                     {flash.text}
                 </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="card text-center py-4">
-                    <div className="text-3xl font-bold text-emerald-600">{books.length}</div>
+                    <div className="text-3xl font-bold text-success-600">{books.length}</div>
                     <div className="text-sm text-gray-500 mt-1">Carnets actifs</div>
                 </div>
                 <div className="card text-center py-4">
-                    <div className="text-3xl font-bold text-blue-600">{totalHoursAll}h</div>
+                    <div className="text-3xl font-bold text-info-600">{totalHoursAll}h</div>
                     <div className="text-sm text-gray-500 mt-1">Total heures</div>
                 </div>
                 <div className="card text-center py-4">
-                    <div className="text-3xl font-bold text-purple-600">
+                    <div className="text-3xl font-bold text-accent-600">
                         {books.filter((b: ARCEPBook) => b.is_active).length}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">Actifs</div>
@@ -96,7 +96,7 @@ export default function ARCEPPage() {
 
             {isLoading ? (
                 <div className="flex items-center justify-center h-40">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-600" />
                 </div>
             ) : books.length === 0 ? (
                 <div className="card text-center py-16 text-gray-400">
@@ -140,26 +140,26 @@ export default function ARCEPPage() {
                                 <input required type="text" value={entryForm.activity}
                                     onChange={e => setEntryForm(f => ({ ...f, activity: e.target.value }))}
                                     placeholder="Ex: Maintenance système CNS, Test radar..."
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-success-500" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Durée (heures) *</label>
                                 <input required type="number" min="0.5" max="24" step="0.5"
                                     value={entryForm.duration_hours}
                                     onChange={e => setEntryForm(f => ({ ...f, duration_hours: Number(e.target.value) }))}
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-success-500" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                                 <textarea value={entryForm.notes}
                                     onChange={e => setEntryForm(f => ({ ...f, notes: e.target.value }))}
                                     rows={3} placeholder="Observations, remarques..."
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-success-500" />
                             </div>
                             <div className="flex gap-3 justify-end pt-2">
                                 <button type="button" onClick={() => setAddEntryBookId(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Annuler</button>
                                 <button type="submit" disabled={createEntryMut.isPending}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50">
+                                    className="px-4 py-2 text-sm font-medium text-white bg-success-600 hover:bg-success-700 rounded-xl disabled:opacity-50">
                                     {createEntryMut.isPending ? 'Ajout...' : 'Ajouter'}
                                 </button>
                             </div>
@@ -181,12 +181,12 @@ export default function ARCEPPage() {
                         <p className="text-sm text-gray-500 mb-4">La signature couvre toutes les entrées non encore signées.</p>
                         <textarea value={signNotes} onChange={e => setSignNotes(e.target.value)}
                             rows={3} placeholder="Observations du chef d'unité (optionnel)..."
-                            className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-info-500" />
                         <div className="flex gap-3 mt-4 justify-end">
                             <button onClick={() => setSignBookId(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Annuler</button>
                             <button disabled={signMut.isPending}
                                 onClick={() => signMut.mutate(signBookId!)}
-                                className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center gap-2 disabled:opacity-50">
+                                className="px-4 py-2 text-sm text-white bg-info-600 hover:bg-info-700 rounded-xl flex items-center gap-2 disabled:opacity-50">
                                 <CheckCircle size={14} /> Signer
                             </button>
                         </div>
@@ -214,8 +214,8 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
         <div className="card p-0 overflow-hidden">
             <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={onToggle}>
                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                        <BookMarked size={18} className="text-emerald-700" />
+                    <div className="w-10 h-10 rounded-xl bg-success-100 flex items-center justify-center">
+                        <BookMarked size={18} className="text-success-700" />
                     </div>
                     <div>
                         <div className="font-semibold text-gray-900">
@@ -230,19 +230,19 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
                         <div className="text-xs text-gray-400">cumulées</div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className={`badge text-xs ${book.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`badge text-xs ${book.is_active ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
                             {book.is_active ? 'Actif' : 'Inactif'}
                         </span>
                         {(isOwnBook || canSign) && (
                             <button onClick={e => { e.stopPropagation(); onAddEntry() }}
-                                className="text-xs flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg"
+                                className="text-xs flex items-center gap-1 px-2 py-1 bg-success-100 text-success-700 hover:bg-success-200 rounded-lg"
                                 title="Ajouter une entrée">
                                 <Plus size={12} /> Entrée
                             </button>
                         )}
                         {canSign && (
                             <button onClick={e => { e.stopPropagation(); onSign() }}
-                                className="text-xs flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg"
+                                className="text-xs flex items-center gap-1 px-2 py-1 bg-info-100 text-info-700 hover:bg-info-200 rounded-lg"
                                 title="Signer le carnet">
                                 <PenLine size={12} /> Signer
                             </button>
@@ -276,7 +276,7 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
                                         </div>
                                     </div>
                                     {entry.is_validated && (
-                                        <CheckCircle size={14} className="text-green-500 flex-shrink-0 mt-0.5" aria-label="Entrée validée" />
+                                        <CheckCircle size={14} className="text-success-500 flex-shrink-0 mt-0.5" aria-label="Entrée validée" />
                                     )}
                                 </div>
                             ))}

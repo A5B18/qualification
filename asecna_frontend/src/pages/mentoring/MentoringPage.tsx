@@ -111,7 +111,7 @@ export default function MentoringPage() {
             {/* ── En-tête ── */}
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <BookOpen size={24} className="text-indigo-600" /> Fiches de Mentorat
+                    <BookOpen size={24} className="text-info-600" /> Fiches de Mentorat
                 </h1>
                 <p className="text-gray-400 text-sm mt-0.5">
                     {allData?.count ?? 0} fiche{(allData?.count ?? 0) > 1 ? 's' : ''} enregistrée{(allData?.count ?? 0) > 1 ? 's' : ''}
@@ -121,7 +121,7 @@ export default function MentoringPage() {
             {/* ── Flash ── */}
             {flash && (
                 <div className={`p-3 rounded-xl text-sm font-medium border flex items-center justify-between ${
-                    flash.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
+                    flash.ok ? 'bg-success-50 border-success-200 text-success-800' : 'bg-danger-50 border-danger-200 text-danger-800'
                 }`}>
                     {flash.text}
                     <button onClick={() => setFlash(null)}><X size={14} /></button>
@@ -130,9 +130,9 @@ export default function MentoringPage() {
 
             {/* ── Alerte : fiches en attente d'approbation ── */}
             {canApprove(user) && pending.length > 0 && (
-                <div className="card border-l-4 border-yellow-400 bg-yellow-50 py-3">
-                    <p className="text-yellow-800 text-sm font-medium flex items-center gap-2">
-                        <AlertTriangle size={16} className="text-yellow-500" />
+                <div className="card border-l-4 border-warning-400 bg-warning-50 py-3">
+                    <p className="text-warning-800 text-sm font-medium flex items-center gap-2">
+                        <AlertTriangle size={16} className="text-warning-500" />
                         {pending.length} fiche{pending.length > 1 ? 's' : ''} en attente de votre approbation
                     </p>
                 </div>
@@ -145,7 +145,7 @@ export default function MentoringPage() {
                         key={s}
                         onClick={() => setFilterStatus(filterStatus === s ? 'ALL' : s)}
                         className={`card text-center py-4 transition-all hover:shadow-md ${
-                            filterStatus === s ? 'ring-2 ring-indigo-400 ring-offset-1' : ''
+                            filterStatus === s ? 'ring-2 ring-info-400 ring-offset-1' : ''
                         }`}
                     >
                         <div className="text-2xl font-bold text-gray-900">{counts[s] ?? 0}</div>
@@ -173,7 +173,7 @@ export default function MentoringPage() {
             <div className="card p-0 overflow-hidden">
                 {isLoading ? (
                     <div className="flex items-center justify-center h-40">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info-600" />
                     </div>
                 ) : records.length === 0 ? (
                     <div className="text-center py-14 text-gray-400">
@@ -196,10 +196,10 @@ export default function MentoringPage() {
                                 const st = r.mentoring_status as MentoringStatus
                                 const isPending = st === 'SUBMITTED'
                                 return (
-                                    <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${isPending && canApprove(user) ? 'bg-yellow-50/30' : ''}`}>
+                                    <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${isPending && canApprove(user) ? 'bg-warning-50/30' : ''}`}>
                                         {/* Agent */}
                                         <td className="px-5 py-3.5">
-                                            <Link to={`/agents/${r.agent}`} className="flex items-center gap-1 font-medium text-indigo-700 hover:underline">
+                                            <Link to={`/agents/${r.agent}`} className="flex items-center gap-1 font-medium text-info-700 hover:underline">
                                                 {r.agent_detail?.first_name} {r.agent_detail?.last_name}
                                                 <ExternalLink size={11} />
                                             </Link>
@@ -236,7 +236,7 @@ export default function MentoringPage() {
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => setDetailId(r.id)}
-                                                    className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-400 hover:text-indigo-600 transition-colors"
+                                                    className="p-1.5 rounded-lg hover:bg-info-50 text-info-400 hover:text-info-600 transition-colors"
                                                     title="Voir détails"
                                                 >
                                                     <Eye size={15} />
@@ -246,14 +246,14 @@ export default function MentoringPage() {
                                                         <button
                                                             onClick={() => approveMut.mutate({ id: r.id, opinion: '' })}
                                                             disabled={approveMut.isPending}
-                                                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-400 hover:text-green-600 transition-colors"
+                                                            className="p-1.5 rounded-lg hover:bg-success-50 text-success-400 hover:text-success-600 transition-colors"
                                                             title="Approuver"
                                                         >
                                                             <ThumbsUp size={15} />
                                                         </button>
                                                         <button
                                                             onClick={() => { setRejectId(r.id); setRejectOpinion('') }}
-                                                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors"
+                                                            className="p-1.5 rounded-lg hover:bg-danger-50 text-danger-400 hover:text-danger-500 transition-colors"
                                                             title="Rejeter"
                                                         >
                                                             <ThumbsDown size={15} />
@@ -336,13 +336,13 @@ export default function MentoringPage() {
                                 <button
                                     onClick={() => approveMut.mutate({ id: selectedRecord.id, opinion: '' })}
                                     disabled={approveMut.isPending}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors disabled:opacity-50"
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-success-600 hover:bg-success-700 rounded-xl transition-colors disabled:opacity-50"
                                 >
                                     <ThumbsUp size={15} /> Approuver
                                 </button>
                                 <button
                                     onClick={() => { setRejectId(selectedRecord.id); setDetailId(null); setRejectOpinion('') }}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors"
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-danger-500 hover:bg-danger-600 rounded-xl transition-colors"
                                 >
                                     <ThumbsDown size={15} /> Rejeter
                                 </button>
@@ -355,7 +355,7 @@ export default function MentoringPage() {
                                 <button
                                     onClick={() => submitMut.mutate({ id: selectedRecord.id, data: {} })}
                                     disabled={submitMut.isPending}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors disabled:opacity-50"
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-info-600 hover:bg-info-700 rounded-xl transition-colors disabled:opacity-50"
                                 >
                                     {submitMut.isPending ? 'Soumission…' : '📤 Soumettre au chef d\'unité'}
                                 </button>
@@ -376,7 +376,7 @@ export default function MentoringPage() {
                             </button>
                         </div>
                         <textarea
-                            className="w-full border border-gray-200 rounded-xl p-3 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
+                            className="w-full border border-gray-200 rounded-xl p-3 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-danger-400"
                             placeholder="Expliquer pourquoi la fiche est rejetée (obligatoire)..."
                             value={rejectOpinion}
                             onChange={e => setRejectOpinion(e.target.value)}
@@ -388,7 +388,7 @@ export default function MentoringPage() {
                             <button
                                 onClick={() => rejectId && rejectMut.mutate({ id: rejectId, opinion: rejectOpinion })}
                                 disabled={!rejectOpinion.trim() || rejectMut.isPending}
-                                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-xl disabled:opacity-40 transition-colors"
+                                className="px-4 py-2 text-sm text-white bg-danger-600 hover:bg-danger-700 rounded-xl disabled:opacity-40 transition-colors"
                             >
                                 {rejectMut.isPending ? 'Rejet…' : 'Confirmer le rejet'}
                             </button>

@@ -1,26 +1,18 @@
-/** @type {import('tailwindcss').Config} */
+/**
+ * Tailwind 4 se configure depuis le CSS.
+ *
+ * Ce fichier dupliquait la palette `asecna` alors qu'il n'est jamais chargé :
+ * en v4, `tailwind.config.js` n'est lu que si une directive `@config` le
+ * désigne depuis la feuille de styles, ce qui n'est pas le cas ici. Les deux
+ * définitions ont divergé sans que rien ne le signale.
+ *
+ * La seule source de vérité est le bloc `@theme` de `src/index.css`.
+ *
+ * @type {import('tailwindcss').Config}
+ */
 export default {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
   ],
-  theme: {
-    extend: {
-      colors: {
-        asecna: {
-          50:  '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-        }
-      }
-    },
-  },
-  plugins: [],
 }

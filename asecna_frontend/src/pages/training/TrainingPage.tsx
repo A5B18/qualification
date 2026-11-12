@@ -14,8 +14,8 @@ const TYPE_LABELS: Record<string, string> = {
     REFRESHER: 'Recyclage', INITIAL: 'Formation initiale',
 }
 const TYPE_COLORS: Record<string, string> = {
-    QUALIFYING: 'bg-asecna-100 text-asecna-700', CONTINUING: 'bg-blue-100 text-blue-700',
-    REFRESHER: 'bg-orange-100 text-orange-700', INITIAL: 'bg-purple-100 text-purple-700',
+    QUALIFYING: 'bg-asecna-100 text-asecna-700', CONTINUING: 'bg-info-100 text-info-700',
+    REFRESHER: 'bg-warning-100 text-warning-700', INITIAL: 'bg-accent-100 text-accent-700',
 }
 
 function canCreate(user: User | null) {
@@ -155,7 +155,7 @@ export default function TrainingPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <GraduationCap size={24} className="text-violet-600" /> Formations & Stages
+                        <GraduationCap size={24} className="text-accent-600" /> Formations & Stages
                     </h1>
                     <p className="text-gray-400 text-sm mt-0.5">
                         {trainingsData?.count ?? 0} formations · {internshipsData?.count ?? 0} stages
@@ -163,14 +163,14 @@ export default function TrainingPage() {
                 </div>
                 {canCreate(user) && (
                     <button onClick={() => setShowCreateInternship(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-medium transition-colors">
+                        className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white rounded-xl text-sm font-medium transition-colors">
                         <Plus size={16} /> Inscrire à un stage
                     </button>
                 )}
             </div>
 
             {flash && (
-                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <div className={`p-3 rounded-xl text-sm border ${flash.ok ? 'bg-success-50 border-success-200 text-success-800' : 'bg-danger-50 border-danger-200 text-danger-800'}`}>
                     {flash.text}
                 </div>
             )}
@@ -190,15 +190,15 @@ export default function TrainingPage() {
             {/* Stats rapides */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="card text-center py-4">
-                    <div className="text-2xl font-bold text-violet-600">{trainingsData?.count ?? 0}</div>
+                    <div className="text-2xl font-bold text-accent-600">{trainingsData?.count ?? 0}</div>
                     <div className="text-xs text-gray-500 mt-1">Formations</div>
                 </div>
                 <div className="card text-center py-4">
-                    <div className="text-2xl font-bold text-blue-600">{activeInternships.length}</div>
+                    <div className="text-2xl font-bold text-info-600">{activeInternships.length}</div>
                     <div className="text-xs text-gray-500 mt-1">Stages en cours</div>
                 </div>
                 <div className="card text-center py-4">
-                    <div className="text-2xl font-bold text-green-600">{passedInternships.length}</div>
+                    <div className="text-2xl font-bold text-success-600">{passedInternships.length}</div>
                     <div className="text-xs text-gray-500 mt-1">Stages réussis</div>
                 </div>
                 <div className="card text-center py-4">
@@ -227,7 +227,7 @@ export default function TrainingPage() {
             {activeTab === 'trainings' && (
                 loadingT ? (
                     <div className="flex items-center justify-center h-40">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-600" />
                     </div>
                 ) : trainings.length === 0 ? (
                     <div className="card text-center py-12 text-gray-400">
@@ -254,7 +254,7 @@ export default function TrainingPage() {
                                     <span className="flex items-center gap-1"><BookCheck size={11} />
                                         {internships.filter((i: Internship) => i.training === t.id).length} stagiaire(s)
                                     </span>
-                                    <span className={`ml-auto font-medium ${t.is_active ? 'text-green-600' : 'text-gray-400'}`}>
+                                    <span className={`ml-auto font-medium ${t.is_active ? 'text-success-600' : 'text-gray-400'}`}>
                                         {t.is_active ? '● Actif' : '○ Inactif'}
                                     </span>
                                 </div>
@@ -271,7 +271,7 @@ export default function TrainingPage() {
                         <div className="flex justify-end">
                             <button
                                 onClick={() => setShowCreateCourse(v => !v)}
-                                className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-medium transition-colors"
+                                className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white rounded-xl text-sm font-medium transition-colors"
                             >
                                 {showCreateCourse ? <X size={16} /> : <Plus size={16} />}
                                 {showCreateCourse ? 'Annuler' : 'Nouveau cours'}
@@ -287,7 +287,7 @@ export default function TrainingPage() {
                                     <input
                                         required value={courseForm.title}
                                         onChange={e => setCourseForm(f => ({ ...f, title: e.target.value }))}
-                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                                         placeholder="Ex : Phraséologie — module 1"
                                     />
                                 </div>
@@ -296,7 +296,7 @@ export default function TrainingPage() {
                                     <select
                                         required value={courseForm.training}
                                         onChange={e => setCourseForm(f => ({ ...f, training: e.target.value }))}
-                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                                     >
                                         <option value="">— Choisir —</option>
                                         {trainings.map((t: Training) => (
@@ -310,10 +310,10 @@ export default function TrainingPage() {
                                 <textarea
                                     required rows={4} value={courseForm.content}
                                     onChange={e => setCourseForm(f => ({ ...f, content: e.target.value }))}
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                                 />
                             </div>
-                            <button type="submit" className="px-4 py-2 rounded-xl text-sm font-medium bg-violet-600 text-white hover:bg-violet-700">
+                            <button type="submit" className="px-4 py-2 rounded-xl text-sm font-medium bg-accent-600 text-white hover:bg-accent-700">
                                 Créer le cours
                             </button>
                         </form>
@@ -321,7 +321,7 @@ export default function TrainingPage() {
 
                     {loadingC ? (
                         <div className="flex items-center justify-center h-40">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600" />
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-600" />
                         </div>
                     ) : courses.length === 0 ? (
                         <div className="card text-center py-12 text-gray-400">
@@ -335,7 +335,7 @@ export default function TrainingPage() {
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap mb-1">
                                             <h3 className="font-semibold text-gray-900">{c.title}</h3>
-                                            <span className={`badge text-xs ${c.is_published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            <span className={`badge text-xs ${c.is_published ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
                                                 {c.is_published ? 'Publié' : 'Brouillon'}
                                             </span>
                                         </div>
@@ -350,14 +350,14 @@ export default function TrainingPage() {
                                                 onClick={() => togglePublish(c)}
                                                 className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors ${c.is_published
                                                     ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                                    : 'bg-green-600 text-white hover:bg-green-700'}`}
+                                                    : 'bg-success-600 text-white hover:bg-success-700'}`}
                                             >
                                                 {c.is_published ? <><EyeOff size={13} /> Dépublier</> : <><Eye size={13} /> Publier</>}
                                             </button>
                                             <button
                                                 onClick={() => removeCourse(c)}
                                                 title="Supprimer le cours"
-                                                className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                                className="p-2 rounded-lg text-gray-400 hover:text-danger-600 hover:bg-danger-50"
                                             >
                                                 <Trash2 size={15} />
                                             </button>
@@ -374,7 +374,7 @@ export default function TrainingPage() {
             {activeTab === 'internships' && (
                 loadingI ? (
                     <div className="flex items-center justify-center h-40">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-600" />
                     </div>
                 ) : internships.length === 0 ? (
                     <div className="card text-center py-12 text-gray-400">
@@ -382,7 +382,7 @@ export default function TrainingPage() {
                         <p>Aucun stage enregistré</p>
                         {canCreate(user) && (
                             <button onClick={() => setShowCreateInternship(true)}
-                                className="mt-3 text-sm text-violet-600 hover:underline">
+                                className="mt-3 text-sm text-accent-600 hover:underline">
                                 Inscrire un agent →
                             </button>
                         )}
@@ -408,7 +408,7 @@ export default function TrainingPage() {
                                         <td className="px-5 py-3.5 text-gray-500 text-xs">{new Date(i.start_date).toLocaleDateString('fr-FR')}</td>
                                         <td className="px-5 py-3.5 text-gray-500 text-xs">{new Date(i.end_date).toLocaleDateString('fr-FR')}</td>
                                         <td className="px-5 py-3.5">
-                                            <span className={`badge text-xs ${i.is_passed ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            <span className={`badge text-xs ${i.is_passed ? 'bg-success-100 text-success-700' : 'bg-info-100 text-info-700'}`}>
                                                 {i.is_passed ? 'Réussi ✓' : 'En cours'}
                                             </span>
                                         </td>
@@ -434,7 +434,7 @@ export default function TrainingPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Agent *</label>
                                 <select required value={internForm.agent} onChange={e => setInternForm(f => ({ ...f, agent: e.target.value }))}
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500">
                                     <option value="">— Choisir un agent —</option>
                                     {agents.map((a: User) => (
                                         <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.matricule})</option>
@@ -444,7 +444,7 @@ export default function TrainingPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Formation *</label>
                                 <select required value={internForm.training} onChange={e => setInternForm(f => ({ ...f, training: e.target.value }))}
-                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                                    className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500">
                                     <option value="">— Choisir une formation —</option>
                                     {trainings.map((t: Training) => (
                                         <option key={t.id} value={t.id}>{t.title}</option>
@@ -456,19 +456,19 @@ export default function TrainingPage() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Début *</label>
                                     <input required type="date" value={internForm.start_date}
                                         onChange={e => setInternForm(f => ({ ...f, start_date: e.target.value }))}
-                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Fin *</label>
                                     <input required type="date" value={internForm.end_date}
                                         onChange={e => setInternForm(f => ({ ...f, end_date: e.target.value }))}
-                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                                        className="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500" />
                                 </div>
                             </div>
                             <div className="flex gap-3 justify-end pt-2">
                                 <button type="button" onClick={() => setShowCreateInternship(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Annuler</button>
                                 <button type="submit"
-                                    className="px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-xl">
+                                    className="px-4 py-2 text-sm font-medium text-white bg-accent-600 hover:bg-accent-700 rounded-xl">
                                     Créer le stage
                                 </button>
                             </div>

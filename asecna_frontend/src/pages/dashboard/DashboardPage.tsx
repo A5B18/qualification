@@ -26,9 +26,10 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useNow, daysUntil } from '../../utils/dates'
+import { AgentStatusLabels, AgentStatusChartColors } from '../../types'
 import type {
     User, ExamSession, MentoringRecord, Report, ProbationPeriod,
-    Internship, Training, ApprovalWorkflow,
+    Internship, Training, ApprovalWorkflow, AgentStatus,
 } from '../../types'
 
 // ─── Utilitaires communs ──────────────────────────────────────────────────────
@@ -51,15 +52,15 @@ function StatCard({ icon: Icon, label, value, color, to }: {
     return to ? <Link to={to}>{inner}</Link> : inner
 }
 
-function AlertBanner({ count, label, to, color = 'border-orange-400 bg-orange-50' }: {
+function AlertBanner({ count, label, to, color = 'border-warning-400 bg-warning-50' }: {
     count: number; label: string; to: string; color?: string
 }) {
     if (count === 0) return null
     return (
         <Link to={to} className={`flex items-center gap-3 p-3 rounded-xl border-l-4 ${color} hover:opacity-80 transition-opacity`}>
-            <AlertTriangle size={18} className="text-orange-600 flex-shrink-0" />
+            <AlertTriangle size={18} className="text-warning-600 flex-shrink-0" />
             <span className="text-sm font-medium text-gray-800">
-                <span className="font-bold text-orange-700">{count}</span> {label}
+                <span className="font-bold text-warning-700">{count}</span> {label}
             </span>
             <ChevronRight size={14} className="ml-auto text-gray-400" />
         </Link>
@@ -99,32 +100,29 @@ function AdminDashboard() {
     const pendingMent = mentList.filter((m: MentoringRecord) => m.mentoring_status === 'SUBMITTED').length
     const pendingReports = repList.filter((r: Report) => r.report_status === 'SUBMITTED').length
 
-    const chartData = [
-        { name: 'Nouveau', value: profiles.filter((a: User) => a.status === 'NEW').length, color: '#6b7280' },
-        { name: 'Probation', value: profiles.filter((a: User) => a.status === 'PROBATION').length, color: '#f59e0b' },
-        { name: 'Mentorat', value: profiles.filter((a: User) => a.status === 'MENTORED').length, color: '#3b82f6' },
-        { name: 'Formation', value: profiles.filter((a: User) => a.status === 'TRAINEE').length, color: '#8b5cf6' },
-        { name: 'Qualifié', value: profiles.filter((a: User) => a.status === 'QUALIFIED').length, color: '#10b981' },
-        { name: 'Suspendu', value: profiles.filter((a: User) => a.status === 'SUSPENDED').length, color: '#ef4444' },
-        // La barre « Retraite » manquait : le backend compte 7 statuts de
-        // parcours (AgentStatus), le graphique n'en montrait que 6, et les
-        // agents retraites disparaissaient de la repartition.
-        { name: 'Retraité', value: profiles.filter((a: User) => a.status === 'RETIRED').length, color: '#9ca3af' },
-    ]
+    // Le graphique se derive des sept statuts declares, au lieu d'en tenir une
+    // liste a part : c'est ainsi que « Retraite » avait ete oublie, et que le
+    // graphique n'en montrait que six. Ajouter un statut au backend le fait
+    // desormais apparaitre ici sans toucher a cet ecran.
+    const chartData = (Object.keys(AgentStatusLabels) as AgentStatus[]).map(status => ({
+        name: AgentStatusLabels[status],
+        value: profiles.filter((a: User) => a.status === status).length,
+        color: AgentStatusChartColors[status],
+    }))
 
     return (
         <div className="space-y-5">
             <div className="space-y-2">
-                <AlertBanner count={pendingEvals} label="évaluation(s) à approuver" to="/evaluations" color="border-purple-500 bg-purple-50" />
+                <AlertBanner count={pendingEvals} label="évaluation(s) à approuver" to="/evaluations" color="border-accent-500 bg-accent-50" />
                 <AlertBanner count={pendingMent} label="mentorat(s) soumis à valider" to="/mentoring" />
                 <AlertBanner count={pendingReports} label="rapport(s) soumis à traiter" to="/reports" />
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard icon={Users} label="Agents total" value={agents?.count ?? 0} color="bg-asecna-600" to="/agents" />
-                <StatCard icon={ClipboardList} label="En probation" value={probList.filter((p: ProbationPeriod) => p.probation_status === 'IN_PROGRESS').length} color="bg-amber-500" to="/probation" />
-                <StatCard icon={BookOpen} label="En mentorat" value={mentList.filter((m: MentoringRecord) => m.mentoring_status !== 'COMPLETED').length} color="bg-blue-500" to="/mentoring" />
-                <StatCard icon={Award} label="Évals en attente" value={pendingEvals} color="bg-purple-500" to="/evaluations" />
+                <StatCard icon={ClipboardList} label="En probation" value={probList.filter((p: ProbationPeriod) => p.probation_status === 'IN_PROGRESS').length} color="bg-warning-500" to="/probation" />
+                <StatCard icon={BookOpen} label="En mentorat" value={mentList.filter((m: MentoringRecord) => m.mentoring_status !== 'COMPLETED').length} color="bg-info-500" to="/mentoring" />
+                <StatCard icon={Award} label="Évals en attente" value={pendingEvals} color="bg-accent-500" to="/evaluations" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -147,10 +145,10 @@ function AdminDashboard() {
                     <h2 className="text-base font-semibold text-gray-900 mb-4">Activité en attente</h2>
                     <div className="space-y-3">
                         {[
-                            { label: 'Agents qualifiés', value: profiles.filter((a: User) => a.status === 'QUALIFIED').length, color: 'bg-green-500' },
-                            { label: 'Sessions à approuver', value: pendingEvals, color: 'bg-purple-500' },
-                            { label: 'Mentorats soumis', value: pendingMent, color: 'bg-blue-500' },
-                            { label: 'Rapports soumis', value: pendingReports, color: 'bg-orange-500' },
+                            { label: 'Agents qualifiés', value: profiles.filter((a: User) => a.status === 'QUALIFIED').length, color: 'bg-success-500' },
+                            { label: 'Sessions à approuver', value: pendingEvals, color: 'bg-accent-500' },
+                            { label: 'Mentorats soumis', value: pendingMent, color: 'bg-info-500' },
+                            { label: 'Rapports soumis', value: pendingReports, color: 'bg-warning-500' },
                         ].map(({ label, value, color }) => (
                             <div key={label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                                 <div className="flex items-center gap-3">
@@ -184,21 +182,21 @@ function UnitChiefDashboard() {
     return (
         <div className="space-y-5">
             <div className="space-y-2">
-                <AlertBanner count={toApproveEval.length} label="évaluation(s) à valider" to="/evaluations" color="border-purple-500 bg-purple-50" />
+                <AlertBanner count={toApproveEval.length} label="évaluation(s) à valider" to="/evaluations" color="border-accent-500 bg-accent-50" />
                 <AlertBanner count={toApproveMent.length} label="fiche(s) de mentorat soumise(s)" to="/mentoring" />
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={Award} label="Évals à approuver" value={toApproveEval.length} color="bg-purple-600" to="/evaluations" />
-                <StatCard icon={BookOpen} label="Mentorats soumis" value={toApproveMent.length} color="bg-blue-500" to="/mentoring" />
-                <StatCard icon={ClipboardList} label="En probation" value={inProbation.length} color="bg-amber-500" to="/probation" />
-                <StatCard icon={BookMarked} label="Carnets ARCEP" value={books.length} color="bg-emerald-600" to="/arcep" />
+                <StatCard icon={Award} label="Évals à approuver" value={toApproveEval.length} color="bg-accent-600" to="/evaluations" />
+                <StatCard icon={BookOpen} label="Mentorats soumis" value={toApproveMent.length} color="bg-info-500" to="/mentoring" />
+                <StatCard icon={ClipboardList} label="En probation" value={inProbation.length} color="bg-warning-500" to="/probation" />
+                <StatCard icon={BookMarked} label="Carnets ARCEP" value={books.length} color="bg-success-600" to="/arcep" />
             </div>
 
             {toApproveEval.length > 0 && (
-                <SectionCard title="Corrections à approuver" icon={Award} iconColor="text-purple-600">
+                <SectionCard title="Corrections à approuver" icon={Award} iconColor="text-accent-600">
                     <div className="space-y-2">
                         {toApproveEval.slice(0, 5).map((s: ExamSession) => (
-                            <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
+                            <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-accent-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
                                         {s.agent_detail?.first_name} {s.agent_detail?.last_name}
@@ -206,7 +204,7 @@ function UnitChiefDashboard() {
                                     </div>
                                     <div className="text-xs text-gray-500 mt-0.5">{s.exam_detail?.title} — Score provisoire : <b>{s.score ?? '?'}/100</b></div>
                                 </div>
-                                <Link to="/evaluations" className="text-xs text-purple-600 hover:underline flex items-center gap-1">Valider <ChevronRight size={12} /></Link>
+                                <Link to="/evaluations" className="text-xs text-accent-600 hover:underline flex items-center gap-1">Valider <ChevronRight size={12} /></Link>
                             </div>
                         ))}
                     </div>
@@ -214,14 +212,14 @@ function UnitChiefDashboard() {
             )}
 
             {inProbation.length > 0 && (
-                <SectionCard title="Agents en période d'essai" icon={ClipboardList} iconColor="text-amber-600">
+                <SectionCard title="Agents en période d'essai" icon={ClipboardList} iconColor="text-warning-600">
                     <div className="space-y-2">
                         {inProbation.slice(0, 5).map((p: ProbationPeriod) => {
                             const daysLeft = daysUntil(p.end_date, now)
                             return (
-                                <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-amber-50">
+                                <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-warning-50">
                                     <div className="text-sm font-medium text-gray-900">{p.agent_detail?.matricule ?? `Agent #${p.agent}`}</div>
-                                    <span className={`text-xs font-semibold ${daysLeft < 14 ? 'text-red-600' : 'text-amber-700'}`}>
+                                    <span className={`text-xs font-semibold ${daysLeft < 14 ? 'text-danger-600' : 'text-warning-700'}`}>
                                         {daysLeft > 0 ? `${daysLeft}j restants` : 'Délai dépassé ⚠️'}
                                     </span>
                                 </div>
@@ -256,26 +254,26 @@ function ApproverDashboard() {
     return (
         <div className="space-y-5">
             <div className="space-y-2">
-                <AlertBanner count={waiting.length} label="décision(s) en attente au registre" to="/workflows" color="border-amber-500 bg-amber-50" />
-                <AlertBanner count={pendingReports.length} label="rapport(s) soumis à approuver" to="/reports" color="border-indigo-500 bg-indigo-50" />
+                <AlertBanner count={waiting.length} label="décision(s) en attente au registre" to="/workflows" color="border-warning-500 bg-warning-50" />
+                <AlertBanner count={pendingReports.length} label="rapport(s) soumis à approuver" to="/reports" color="border-info-500 bg-info-50" />
                 <AlertBanner count={pendingMent.length} label="fiche(s) de mentorat soumise(s)" to="/mentoring" />
-                <AlertBanner count={pendingEval.length} label="évaluation(s) à approuver" to="/evaluations" color="border-purple-500 bg-purple-50" />
+                <AlertBanner count={pendingEval.length} label="évaluation(s) à approuver" to="/evaluations" color="border-accent-500 bg-accent-50" />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <StatCard icon={GitPullRequestArrow} label="En attente (tous modules)" value={waiting.length} color="bg-amber-500" to="/workflows" />
-                <StatCard icon={FileText} label="Rapports à approuver" value={pendingReports.length} color="bg-indigo-600" to="/reports" />
-                <StatCard icon={BookOpen} label="Mentorats soumis" value={pendingMent.length} color="bg-blue-500" to="/mentoring" />
-                <StatCard icon={Award} label="Évals à valider" value={pendingEval.length} color="bg-purple-500" to="/evaluations" />
+                <StatCard icon={GitPullRequestArrow} label="En attente (tous modules)" value={waiting.length} color="bg-warning-500" to="/workflows" />
+                <StatCard icon={FileText} label="Rapports à approuver" value={pendingReports.length} color="bg-info-600" to="/reports" />
+                <StatCard icon={BookOpen} label="Mentorats soumis" value={pendingMent.length} color="bg-asecna-600" to="/mentoring" />
+                <StatCard icon={Award} label="Évals à valider" value={pendingEval.length} color="bg-accent-500" to="/evaluations" />
             </div>
 
             {waiting.length > 0 && (
-                <SectionCard title="Registre — en attente de décision" icon={GitPullRequestArrow} iconColor="text-amber-600">
+                <SectionCard title="Registre — en attente de décision" icon={GitPullRequestArrow} iconColor="text-warning-600">
                     <div className="space-y-2">
                         {waiting.slice(0, 8).map((wf: ApprovalWorkflow) => (
                             <Link
                                 key={wf.id}
                                 to={wf.target?.route ?? '/workflows'}
-                                className="flex items-center justify-between p-3 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors"
+                                className="flex items-center justify-between p-3 rounded-lg bg-warning-50 hover:bg-warning-100 transition-colors"
                             >
                                 <div className="min-w-0">
                                     <div className="text-sm font-medium text-gray-900">
@@ -287,7 +285,7 @@ function ApproverDashboard() {
                                         {wf.submitted_by_name && ` · soumis par ${wf.submitted_by_name}`}
                                     </div>
                                 </div>
-                                <ChevronRight size={14} className="text-amber-600 shrink-0" />
+                                <ChevronRight size={14} className="text-warning-600 shrink-0" />
                             </Link>
                         ))}
                     </div>
@@ -295,17 +293,17 @@ function ApproverDashboard() {
             )}
 
             {pendingReports.length > 0 && (
-                <SectionCard title="Rapports soumis — à approuver" icon={FileText} iconColor="text-indigo-600">
+                <SectionCard title="Rapports soumis — à approuver" icon={FileText} iconColor="text-info-600">
                     <div className="space-y-2">
                         {pendingReports.slice(0, 6).map((r: Report) => (
-                            <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-indigo-50">
+                            <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-info-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">{r.title}</div>
                                     <div className="text-xs text-gray-500 mt-0.5">
                                         Soumis le {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('fr-FR') : '—'}
                                     </div>
                                 </div>
-                                <Link to="/reports" className="text-xs text-indigo-600 hover:underline flex items-center gap-1">Examiner <ChevronRight size={12} /></Link>
+                                <Link to="/reports" className="text-xs text-info-600 hover:underline flex items-center gap-1">Examiner <ChevronRight size={12} /></Link>
                             </div>
                         ))}
                     </div>
@@ -330,21 +328,21 @@ function EvaluatorDashboard() {
     return (
         <div className="space-y-5">
             <div className="space-y-2">
-                <AlertBanner count={submitted.length} label="session(s) soumise(s) à corriger" to="/evaluations" color="border-yellow-400 bg-yellow-50" />
+                <AlertBanner count={submitted.length} label="session(s) soumise(s) à corriger" to="/evaluations" color="border-warning-400 bg-warning-50" />
                 <AlertBanner count={dueProb.length} label="probation(s) à évaluer bientôt" to="/probation" />
-                <AlertBanner count={overdueMain.length} label="maintien(s) de qualification en retard" to="/training/maintenances" color="border-red-500 bg-red-50" />
+                <AlertBanner count={overdueMain.length} label="maintien(s) de qualification en retard" to="/training/maintenances" color="border-danger-500 bg-danger-50" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <StatCard icon={Clock} label="Sessions soumises" value={submitted.length} color="bg-yellow-500" to="/evaluations" />
-                <StatCard icon={Award} label="En cours de correction" value={correcting.length} color="bg-orange-500" to="/evaluations" />
-                <StatCard icon={ShieldCheck} label="Maintiens en retard" value={overdueMain.length} color="bg-red-500" to="/training/maintenances" />
+                <StatCard icon={Clock} label="Sessions soumises" value={submitted.length} color="bg-warning-500" to="/evaluations" />
+                <StatCard icon={Award} label="En cours de correction" value={correcting.length} color="bg-asecna-600" to="/evaluations" />
+                <StatCard icon={ShieldCheck} label="Maintiens en retard" value={overdueMain.length} color="bg-danger-500" to="/training/maintenances" />
             </div>
 
             {submitted.length > 0 && (
-                <SectionCard title="Sessions soumises — à corriger" icon={Award} iconColor="text-yellow-600">
+                <SectionCard title="Sessions soumises — à corriger" icon={Award} iconColor="text-warning-600">
                     <div className="space-y-2">
                         {submitted.slice(0, 6).map((s: ExamSession) => (
-                            <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-yellow-50">
+                            <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-warning-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
                                         {s.agent_detail?.first_name} {s.agent_detail?.last_name}
@@ -352,7 +350,7 @@ function EvaluatorDashboard() {
                                     </div>
                                     <div className="text-xs text-gray-500 mt-0.5">{s.exam_detail?.title}</div>
                                 </div>
-                                <Link to="/evaluations" className="text-xs text-yellow-700 font-semibold hover:underline flex items-center gap-1">Corriger <ChevronRight size={12} /></Link>
+                                <Link to="/evaluations" className="text-xs text-warning-700 font-semibold hover:underline flex items-center gap-1">Corriger <ChevronRight size={12} /></Link>
                             </div>
                         ))}
                     </div>
@@ -360,12 +358,12 @@ function EvaluatorDashboard() {
             )}
 
             {dueProb.length > 0 && (
-                <SectionCard title="Probations à évaluer — J-14" icon={ClipboardList} iconColor="text-orange-600">
+                <SectionCard title="Probations à évaluer — J-14" icon={ClipboardList} iconColor="text-warning-600">
                     <div className="space-y-2">
                         {dueProb.map((p: ProbationPeriod) => (
-                            <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-orange-50">
+                            <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-warning-50">
                                 <div className="text-sm font-medium text-gray-900">{p.agent_detail?.matricule ?? `Agent #${p.agent}`}</div>
-                                <span className="text-xs text-red-600 font-bold">⚠️ J-14</span>
+                                <span className="text-xs text-danger-600 font-bold">⚠️ J-14</span>
                             </div>
                         ))}
                     </div>
@@ -394,10 +392,10 @@ function MentorDashboard({ user }: { user: User | null }) {
     return (
         <div className="space-y-5">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={BookOpen} label="Mes mentorats" value={myMentoring.length} color="bg-blue-600" to="/mentoring" />
-                <StatCard icon={Clock} label="En cours" value={active.length} color="bg-orange-500" to="/mentoring" />
+                <StatCard icon={BookOpen} label="Mes mentorats" value={myMentoring.length} color="bg-info-600" to="/mentoring" />
+                <StatCard icon={Clock} label="En cours" value={active.length} color="bg-warning-500" to="/mentoring" />
                 <StatCard icon={FileText} label="Brouillons" value={drafts.length} color="bg-gray-500" to="/mentoring" />
-                <StatCard icon={CheckCircle} label="Terminés" value={completed.length} color="bg-green-500" to="/mentoring" />
+                <StatCard icon={CheckCircle} label="Terminés" value={completed.length} color="bg-success-500" to="/mentoring" />
             </div>
 
             {drafts.length > 0 && (
@@ -414,7 +412,7 @@ function MentorDashboard({ user }: { user: User | null }) {
                                         Début : {new Date(m.start_date).toLocaleDateString('fr-FR')}
                                     </div>
                                 </div>
-                                <Link to="/mentoring" className="text-xs text-blue-600 hover:underline flex items-center gap-1">Soumettre <ChevronRight size={12} /></Link>
+                                <Link to="/mentoring" className="text-xs text-info-600 hover:underline flex items-center gap-1">Soumettre <ChevronRight size={12} /></Link>
                             </div>
                         ))}
                     </div>
@@ -422,17 +420,17 @@ function MentorDashboard({ user }: { user: User | null }) {
             )}
 
             {active.filter((m: MentoringRecord) => m.mentoring_status === 'APPROVED').length > 0 && (
-                <SectionCard title="Mes mentorats actifs" icon={BookOpen} iconColor="text-blue-600">
+                <SectionCard title="Mes mentorats actifs" icon={BookOpen} iconColor="text-info-600">
                     <div className="space-y-2">
                         {active.filter((m: MentoringRecord) => m.mentoring_status === 'APPROVED').slice(0, 5).map((m: MentoringRecord) => (
-                            <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-blue-50">
+                            <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-info-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
                                         {m.agent_detail?.first_name} {m.agent_detail?.last_name}
                                     </div>
                                     <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{m.objectives || '—'}</div>
                                 </div>
-                                <span className="badge bg-green-100 text-green-700 text-xs">Approuvé ✓</span>
+                                <span className="badge bg-success-100 text-success-700 text-xs">Approuvé ✓</span>
                             </div>
                         ))}
                     </div>
@@ -440,7 +438,7 @@ function MentorDashboard({ user }: { user: User | null }) {
             )}
 
             {submitted.length > 0 && (
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-sm">
+                <div className="p-3 bg-warning-50 border border-warning-200 rounded-xl text-warning-800 text-sm">
                     <b>{submitted.length}</b> fiche(s) soumise(s) en attente de validation par le chef d'unité.
                 </div>
             )}
@@ -461,23 +459,23 @@ function InstructorDashboard() {
     return (
         <div className="space-y-5">
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <StatCard icon={GraduationCap} label="Formations" value={allTrainings.length} color="bg-violet-600" to="/training" />
-                <StatCard icon={BookCheck} label="Stages en cours" value={activeIntern.length} color="bg-orange-500" to="/training" />
-                <StatCard icon={Users} label="Stagiaires actifs" value={allInternships.length} color="bg-blue-500" to="/training" />
+                <StatCard icon={GraduationCap} label="Formations" value={allTrainings.length} color="bg-accent-600" to="/training" />
+                <StatCard icon={BookCheck} label="Stages en cours" value={activeIntern.length} color="bg-warning-500" to="/training" />
+                <StatCard icon={Users} label="Stagiaires actifs" value={allInternships.length} color="bg-info-500" to="/training" />
             </div>
 
             {allTrainings.length > 0 && (
-                <SectionCard title="Formations disponibles" icon={GraduationCap} iconColor="text-violet-600">
+                <SectionCard title="Formations disponibles" icon={GraduationCap} iconColor="text-accent-600">
                     <div className="space-y-2">
                         {allTrainings.slice(0, 6).map((t: Training) => (
-                            <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-violet-50">
+                            <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-accent-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">{t.title}</div>
                                     <div className="text-xs text-gray-500 mt-0.5">
                                         {t.specialty_detail?.name ?? '—'} · Score min : {t.passing_score}%
                                     </div>
                                 </div>
-                                <span className={`badge text-xs ${t.training_type === 'QUALIFYING' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                <span className={`badge text-xs ${t.training_type === 'QUALIFYING' ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
                                     {t.training_type === 'QUALIFYING' ? 'Qualifiante' : 'Non qualifiante'}
                                 </span>
                             </div>
@@ -487,10 +485,10 @@ function InstructorDashboard() {
             )}
 
             {activeIntern.length > 0 && (
-                <SectionCard title="Stages en cours" icon={BookCheck} iconColor="text-orange-600">
+                <SectionCard title="Stages en cours" icon={BookCheck} iconColor="text-warning-600">
                     <div className="space-y-2">
                         {activeIntern.slice(0, 5).map((i: Internship) => (
-                            <div key={i.id} className="flex items-center justify-between p-3 rounded-lg bg-orange-50">
+                            <div key={i.id} className="flex items-center justify-between p-3 rounded-lg bg-warning-50">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
                                         {i.agent_detail?.matricule ?? `Agent #${i.agent}`}
@@ -526,9 +524,9 @@ function AgentDashboard({ user }: { user: User | null }) {
     const lastSess = mySessions[0]
 
     const STATUS_COLORS: Record<string, string> = {
-        NEW: 'bg-gray-100 text-gray-700', PROBATION: 'bg-yellow-100 text-yellow-700',
-        MENTORED: 'bg-blue-100 text-blue-700', TRAINEE: 'bg-purple-100 text-purple-700',
-        QUALIFIED: 'bg-green-100 text-green-700', SUSPENDED: 'bg-red-100 text-red-700', RETIRED: 'bg-gray-200 text-gray-500',
+        NEW: 'bg-gray-100 text-gray-700', PROBATION: 'bg-warning-100 text-warning-700',
+        MENTORED: 'bg-info-100 text-info-700', TRAINEE: 'bg-accent-100 text-accent-700',
+        QUALIFIED: 'bg-success-100 text-success-700', SUSPENDED: 'bg-danger-100 text-danger-700', RETIRED: 'bg-gray-200 text-gray-500',
     }
     const STATUS_LABELS: Record<string, string> = {
         NEW: 'Nouveau', PROBATION: "Période d'essai", MENTORED: 'Mentorat',
@@ -553,24 +551,24 @@ function AgentDashboard({ user }: { user: User | null }) {
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={ClipboardList} label="Mes probations" value={myProbs.length} color="bg-amber-500" to="/probation" />
-                <StatCard icon={BookOpen} label="Mes mentorats" value={myMents.length} color="bg-blue-500" to="/mentoring" />
-                <StatCard icon={BookMarked} label="Carnets ARCEP" value={myBooks.length} color="bg-emerald-600" to="/arcep" />
-                <StatCard icon={Award} label="Mes évaluations" value={mySessions.length} color="bg-purple-500" to="/evaluations" />
+                <StatCard icon={ClipboardList} label="Mes probations" value={myProbs.length} color="bg-warning-500" to="/probation" />
+                <StatCard icon={BookOpen} label="Mes mentorats" value={myMents.length} color="bg-info-500" to="/mentoring" />
+                <StatCard icon={BookMarked} label="Carnets ARCEP" value={myBooks.length} color="bg-success-600" to="/arcep" />
+                <StatCard icon={Award} label="Mes évaluations" value={mySessions.length} color="bg-accent-500" to="/evaluations" />
             </div>
 
             {lastProb && (
-                <SectionCard title="Ma période d'essai" icon={ClipboardList} iconColor="text-amber-500">
+                <SectionCard title="Ma période d'essai" icon={ClipboardList} iconColor="text-warning-500">
                     <div className="flex items-center justify-between">
                         <div className="text-sm text-gray-600">
                             Tentative #{lastProb.attempt_number} · {new Date(lastProb.start_date).toLocaleDateString('fr-FR')} → {new Date(lastProb.end_date).toLocaleDateString('fr-FR')}
                             {lastProb.score != null && (
                                 <div className="mt-1 font-semibold">
-                                    Score : <span className={lastProb.score >= 70 ? 'text-green-600' : 'text-red-500'}>{lastProb.score}/100</span>
+                                    Score : <span className={lastProb.score >= 70 ? 'text-success-600' : 'text-danger-500'}>{lastProb.score}/100</span>
                                 </div>
                             )}
                         </div>
-                        <span className={`badge ${lastProb.probation_status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : lastProb.probation_status === 'PASSED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        <span className={`badge ${lastProb.probation_status === 'IN_PROGRESS' ? 'bg-info-100 text-info-700' : lastProb.probation_status === 'PASSED' ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'}`}>
                             {lastProb.probation_status === 'IN_PROGRESS' ? 'En cours' : lastProb.probation_status === 'PASSED' ? 'Réussi ✓' : 'Échoué'}
                         </span>
                     </div>
@@ -578,7 +576,7 @@ function AgentDashboard({ user }: { user: User | null }) {
             )}
 
             {lastSess && (
-                <SectionCard title="Ma dernière évaluation" icon={Award} iconColor="text-purple-500">
+                <SectionCard title="Ma dernière évaluation" icon={Award} iconColor="text-accent-500">
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="text-sm font-medium text-gray-900">{lastSess.exam_detail?.title ?? 'Examen'}</div>
@@ -586,7 +584,7 @@ function AgentDashboard({ user }: { user: User | null }) {
                                 {lastSess.score != null ? `Score : ${lastSess.score}/100` : 'En attente de correction'}
                             </div>
                         </div>
-                        <span className={`badge text-xs ${lastSess.session_status === 'GRADED' ? 'bg-green-100 text-green-700' : lastSess.session_status === 'PENDING_APPROVAL' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`badge text-xs ${lastSess.session_status === 'GRADED' ? 'bg-success-100 text-success-700' : lastSess.session_status === 'PENDING_APPROVAL' ? 'bg-accent-100 text-accent-700' : 'bg-gray-100 text-gray-600'}`}>
                             {lastSess.session_status === 'GRADED' ? 'Validée ✓' : lastSess.session_status === 'PENDING_APPROVAL' ? 'En attente chef' : lastSess.session_status}
                         </span>
                     </div>
@@ -612,12 +610,12 @@ function detectRole(user: User | null): RoleKey {
 }
 
 const ROLE_META: Record<RoleKey, { label: string; color: string }> = {
-    admin: { label: '🛡️ Administrateur', color: 'bg-red-100 text-red-700' },
+    admin: { label: '🛡️ Administrateur', color: 'bg-danger-100 text-danger-700' },
     unit_chief: { label: '👑 Chef d\'unité', color: 'bg-asecna-100 text-asecna-700' },
-    approver: { label: '✅ Approbateur', color: 'bg-indigo-100 text-indigo-700' },
-    evaluator: { label: '📋 Évaluateur', color: 'bg-yellow-100 text-yellow-700' },
-    mentor: { label: '🤝 Mentor', color: 'bg-blue-100 text-blue-700' },
-    instructor: { label: '🎓 Instructeur', color: 'bg-violet-100 text-violet-700' },
+    approver: { label: '✅ Approbateur', color: 'bg-info-100 text-info-700' },
+    evaluator: { label: '📋 Évaluateur', color: 'bg-warning-100 text-warning-700' },
+    mentor: { label: '🤝 Mentor', color: 'bg-info-100 text-info-700' },
+    instructor: { label: '🎓 Instructeur', color: 'bg-accent-100 text-accent-700' },
     agent: { label: '👤 Agent', color: 'bg-gray-100 text-gray-700' },
 }
 

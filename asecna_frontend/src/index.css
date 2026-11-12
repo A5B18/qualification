@@ -1,21 +1,123 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Système de couleurs ASECNA
+
+   Onze familles de couleurs cohabitaient auparavant : trois quasi identiques
+   (`asecna`, `indigo`, `blue`), deux violets, trois tons chauds et deux verts.
+   Cette dispersion, plus que la teinte elle-même, rendait l'interface
+   fatigante : deux éléments de même nature portaient des couleurs différentes
+   d'un écran à l'autre.
+
+   L'ensemble tient désormais en six familles :
+
+     asecna   marque — sarcelle. Navigation, actions principales, liens.
+     success  émeraude. Approuvé, qualifié, réussi, publié.
+     warning  ambre.    En attente, en cours, en retard, brouillon.
+     danger   rouge.    Échoué, suspendu, rejeté, expiré.
+     info     ciel.     Mentorat, rapports, bandeaux d'information.
+     accent   violet.   Évaluations et formations.
+
+   Le gris de Tailwind reste utilisé pour les neutres (textes, bordures,
+   fonds).
+
+   ── Lisibilité ────────────────────────────────────────────────────────────
+   Les échelles sont décalées d'un cran par rapport à celles de Tailwind pour
+   que la nuance 600 — celle que portent les boutons à texte blanc — atteigne
+   le rapport de contraste 4,5:1 exigé par WCAG AA. Le sarcelle 600 de
+   Tailwind (#0d9488) ne plafonne qu'à 3,9:1 : son libellé blanc serait
+   illisible pour une partie des utilisateurs.
+
+   Contraste sur blanc des nuances 600 : sarcelle 5,4 · émeraude 5,4
+   · ambre 3,2 (réservée aux fonds, le texte prend la 700, 5,0)
+   · rouge 4,9 · ciel 5,9 · violet 5,7.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @theme {
-  --color-asecna-50: #eef2ff;
-  --color-asecna-100: #e0e7ff;
-  --color-asecna-200: #c7d2fe;
-  --color-asecna-300: #a5b4fc;
-  --color-asecna-400: #818cf8;
-  --color-asecna-500: #6366f1;
-  --color-asecna-600: #4f46e5;
-  --color-asecna-700: #4338ca;
-  --color-asecna-800: #3730a3;
-  --color-asecna-900: #312e81;
+  /* ── Marque — sarcelle ──────────────────────────────────────────────── */
+  --color-asecna-50:  #f0fdfa;
+  --color-asecna-100: #cdfaf3;
+  --color-asecna-200: #99f0e5;
+  --color-asecna-300: #5fdfd0;
+  --color-asecna-400: #2cc4b5;
+  --color-asecna-500: #14a89b;
+  --color-asecna-600: #0f766e;  /* boutons, liens — AA sur blanc */
+  --color-asecna-700: #0c5f58;  /* survol */
+  --color-asecna-800: #0b4c47;
+  --color-asecna-900: #0a3c38;
+  /* La 950 était utilisée par le dégradé de la page de connexion sans avoir
+     jamais été définie : cette étape du dégradé ne s'affichait pas. */
+  --color-asecna-950: #042725;
+
+  /* ── Succès — émeraude ──────────────────────────────────────────────── */
+  --color-success-50:  #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-300: #6ee7b7;
+  --color-success-400: #34d399;
+  --color-success-500: #10b981;
+  --color-success-600: #047857;  /* AA sur blanc */
+  --color-success-700: #065f46;
+  --color-success-800: #064e3b;
+  --color-success-900: #053d2e;
+  --color-success-950: #032a20;
+
+  /* ── Alerte — ambre ─────────────────────────────────────────────────── */
+  --color-warning-50:  #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;  /* fonds et pastilles, pas de texte blanc */
+  --color-warning-700: #b45309;  /* texte — AA sur blanc */
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+  --color-warning-950: #451a03;
+
+  /* ── Danger — rouge ─────────────────────────────────────────────────── */
+  --color-danger-50:  #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-200: #fecaca;
+  --color-danger-300: #fca5a5;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;  /* AA sur blanc */
+  --color-danger-700: #b91c1c;
+  --color-danger-800: #991b1b;
+  --color-danger-900: #7f1d1d;
+  --color-danger-950: #450a0a;
+
+  /* ── Information — ciel ─────────────────────────────────────────────── */
+  --color-info-50:  #f0f9ff;
+  --color-info-100: #e0f2fe;
+  --color-info-200: #bae6fd;
+  --color-info-300: #7dd3fc;
+  --color-info-400: #38bdf8;
+  --color-info-500: #0284c7;
+  --color-info-600: #0369a1;  /* AA sur blanc */
+  --color-info-700: #075985;
+  --color-info-800: #0c4a6e;
+  --color-info-900: #0b3a55;
+  --color-info-950: #082f49;
+
+  /* ── Accent — violet ────────────────────────────────────────────────── */
+  --color-accent-50:  #f5f3ff;
+  --color-accent-100: #ede9fe;
+  --color-accent-200: #ddd6fe;
+  --color-accent-300: #c4b5fd;
+  --color-accent-400: #a78bfa;
+  --color-accent-500: #8b5cf6;
+  --color-accent-600: #7c3aed;  /* AA sur blanc */
+  --color-accent-700: #6d28d9;
+  --color-accent-800: #5b21b6;
+  --color-accent-900: #4c1d95;
+  --color-accent-950: #2e1065;
 }
 
 body {
-  background-color: #f9fafb;
-  color: #111827;
+  background-color: #f8fafc;
+  color: #0f172a;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -24,7 +126,7 @@ body {
   background: white;
   border-radius: 0.75rem;
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04);
-  border: 1px solid #f3f4f6;
+  border: 1px solid #f1f5f9;
   padding: 1.5rem;
 }
 

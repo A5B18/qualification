@@ -9,8 +9,8 @@ const TYPE_LABELS: Record<string, string> = {
     COM: 'Communication', NAV: 'Navigation', SURV: 'Surveillance', MET: 'Météorologie', OTHER: 'Autre',
 }
 const TYPE_COLORS: Record<string, string> = {
-    COM: 'bg-blue-100 text-blue-700', NAV: 'bg-green-100 text-green-700',
-    SURV: 'bg-purple-100 text-purple-700', MET: 'bg-orange-100 text-orange-700',
+    COM: 'bg-info-100 text-info-700', NAV: 'bg-success-100 text-success-700',
+    SURV: 'bg-accent-100 text-accent-700', MET: 'bg-warning-100 text-warning-700',
     OTHER: 'bg-gray-100 text-gray-600',
 }
 const STATUS_LABELS: Record<string, string> = {
@@ -18,9 +18,9 @@ const STATUS_LABELS: Record<string, string> = {
     TRAINEE: 'Formation', QUALIFIED: 'Qualifié', SUSPENDED: 'Suspendu', RETIRED: 'Retraité',
 }
 const STATUS_COLORS: Record<string, string> = {
-    NEW: 'bg-gray-100 text-gray-600', PROBATION: 'bg-amber-100 text-amber-700',
-    MENTORED: 'bg-blue-100 text-blue-700', TRAINEE: 'bg-violet-100 text-violet-700',
-    QUALIFIED: 'bg-green-100 text-green-700', SUSPENDED: 'bg-red-100 text-red-700',
+    NEW: 'bg-gray-100 text-gray-600', PROBATION: 'bg-warning-100 text-warning-700',
+    MENTORED: 'bg-info-100 text-info-700', TRAINEE: 'bg-accent-100 text-accent-700',
+    QUALIFIED: 'bg-success-100 text-success-700', SUSPENDED: 'bg-danger-100 text-danger-700',
     RETIRED: 'bg-gray-200 text-gray-500',
 }
 
@@ -53,9 +53,9 @@ export default function UnitsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                     { label: 'Unités', value: data?.count ?? 0, color: 'text-asecna-600' },
-                    { label: 'Agents total', value: totalAgents, color: 'text-blue-600' },
-                    { label: 'Qualifiés', value: qualified, color: 'text-green-600' },
-                    { label: 'En formation', value: agents.filter((a: AgentUser) => ['PROBATION', 'MENTORED', 'TRAINEE'].includes(String(a.status ?? a.agent_profile?.status))).length, color: 'text-amber-600' },
+                    { label: 'Agents total', value: totalAgents, color: 'text-info-600' },
+                    { label: 'Qualifiés', value: qualified, color: 'text-success-600' },
+                    { label: 'En formation', value: agents.filter((a: AgentUser) => ['PROBATION', 'MENTORED', 'TRAINEE'].includes(String(a.status ?? a.agent_profile?.status))).length, color: 'text-warning-600' },
                 ].map(({ label, value, color }) => (
                     <div key={label} className="card text-center py-4">
                         <div className={`text-3xl font-bold ${color}`}>{value}</div>
@@ -114,7 +114,7 @@ function UnitRow({ unit, agents }: { unit: Unit; agents: AgentUser[] }) {
                             <span className={`badge text-xs ${TYPE_COLORS[unit.unit_type] ?? 'bg-gray-100 text-gray-600'}`}>
                                 {TYPE_LABELS[unit.unit_type] ?? unit.unit_type}
                             </span>
-                            <span className={`w-2 h-2 rounded-full ${unit.is_active ? 'bg-green-400' : 'bg-gray-300'}`}
+                            <span className={`w-2 h-2 rounded-full ${unit.is_active ? 'bg-success-400' : 'bg-gray-300'}`}
                                 title={unit.is_active ? 'Actif' : 'Inactif'} />
                         </div>
                         <h3 className="font-semibold text-gray-900 mt-0.5">{unit.name}</h3>
@@ -126,7 +126,7 @@ function UnitRow({ unit, agents }: { unit: Unit; agents: AgentUser[] }) {
                         <div className="text-sm font-semibold text-gray-700 flex items-center gap-1">
                             <Users size={13} className="text-gray-400" /> {agents.length} agent(s)
                         </div>
-                        <div className="text-xs text-green-600 mt-0.5">{qualified} qualifié(s)</div>
+                        <div className="text-xs text-success-600 mt-0.5">{qualified} qualifié(s)</div>
                     </div>
                     {unit.location && (
                         <div className="text-xs text-gray-400 flex items-center gap-1 hidden md:flex">

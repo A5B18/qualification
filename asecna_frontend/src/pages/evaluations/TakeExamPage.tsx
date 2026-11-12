@@ -124,7 +124,7 @@ export default function TakeExamPage() {
     if (status && status !== 'IN_PROGRESS') {
         return (
             <div className="card text-center py-12">
-                <CheckCircle2 size={36} className="mx-auto text-green-500 mb-3" />
+                <CheckCircle2 size={36} className="mx-auto text-success-500 mb-3" />
                 <p className="text-gray-700 font-medium">Votre copie a déjà été rendue.</p>
                 <p className="text-sm text-gray-500 mt-1">
                     Elle suit son cours : correction par un évaluateur, puis validation du
@@ -161,7 +161,7 @@ export default function TakeExamPage() {
             </div>
 
             {flash && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-success-50 text-success-800 border border-success-200' : 'bg-danger-50 text-danger-800 border border-danger-200'}`}>
                     {flash.text}
                 </div>
             )}
@@ -186,9 +186,9 @@ export default function TakeExamPage() {
             </div>
 
             {confirmFinalize && (
-                <div className="card p-5 border border-amber-200 bg-amber-50">
+                <div className="card p-5 border border-warning-200 bg-warning-50">
                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <AlertTriangle size={16} className="text-amber-600" /> Rendre la copie ?
+                        <AlertTriangle size={16} className="text-warning-600" /> Rendre la copie ?
                     </h3>
                     <p className="text-sm text-gray-700 mt-1">
                         Une fois rendue, la copie part en correction et ne peut plus être
@@ -225,7 +225,7 @@ export default function TakeExamPage() {
                     const current = draft[q.id] ?? saved[q.id] ?? ''
                     const isSaved = saved[q.id] !== undefined && saved[q.id] === current
                     return (
-                        <div key={q.id} className={`card p-5 border-l-4 ${isSaved ? 'border-l-green-500' : 'border-l-gray-200'}`}>
+                        <div key={q.id} className={`card p-5 border-l-4 ${isSaved ? 'border-l-success-500' : 'border-l-gray-200'}`}>
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
@@ -240,7 +240,7 @@ export default function TakeExamPage() {
                                     <p className="text-sm font-medium text-gray-900">{q.text}</p>
                                 </div>
                                 {isSaved && (
-                                    <span className="text-xs text-green-600 flex items-center gap-1 shrink-0">
+                                    <span className="text-xs text-success-600 flex items-center gap-1 shrink-0">
                                         <CheckCircle2 size={13} /> enregistrée
                                     </span>
                                 )}

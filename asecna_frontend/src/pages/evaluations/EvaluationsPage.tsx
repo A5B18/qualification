@@ -19,12 +19,12 @@ const SESSION_STATUS_LABELS: Record<string, string> = {
     REJECTED: 'Rejetée',
 }
 const SESSION_STATUS_COLORS: Record<string, string> = {
-    IN_PROGRESS: 'bg-blue-100 text-blue-700',
-    SUBMITTED: 'bg-yellow-100 text-yellow-700',
-    CORRECTING: 'bg-orange-100 text-orange-700',
-    PENDING_APPROVAL: 'bg-purple-100 text-purple-700',
-    GRADED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
+    IN_PROGRESS: 'bg-info-100 text-info-700',
+    SUBMITTED: 'bg-warning-100 text-warning-700',
+    CORRECTING: 'bg-warning-100 text-warning-700',
+    PENDING_APPROVAL: 'bg-accent-100 text-accent-700',
+    GRADED: 'bg-success-100 text-success-700',
+    REJECTED: 'bg-danger-100 text-danger-700',
 }
 
 function canCreateExam(user: User | null): boolean {
@@ -157,8 +157,8 @@ export default function EvaluationsPage() {
             {/* Notification */}
             {actionMsg && (
                 <div className={`p-3 rounded-xl text-sm font-medium border ${actionMsg.type === 'success'
-                        ? 'bg-green-50 border-green-200 text-green-800'
-                        : 'bg-red-50 border-red-200 text-red-800'
+                        ? 'bg-success-50 border-success-200 text-success-800'
+                        : 'bg-danger-50 border-danger-200 text-danger-800'
                     }`}>
                     {actionMsg.text}
                 </div>
@@ -168,9 +168,9 @@ export default function EvaluationsPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                     { label: 'Examens', value: examsData?.count ?? 0, color: 'bg-asecna-50 border-asecna-200 text-asecna-700' },
-                    { label: 'Sessions', value: sessionsData?.count ?? 0, color: 'bg-blue-50 border-blue-200 text-blue-700' },
-                    { label: 'En attente approbation', value: pendingApproval.length, color: pendingApproval.length > 0 ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-gray-50 border-gray-200 text-gray-500' },
-                    { label: 'Score moyen validé', value: graded.length > 0 ? `${avgScore}%` : '—', color: avgScore >= 70 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-500' },
+                    { label: 'Sessions', value: sessionsData?.count ?? 0, color: 'bg-info-50 border-info-200 text-info-700' },
+                    { label: 'En attente approbation', value: pendingApproval.length, color: pendingApproval.length > 0 ? 'bg-accent-50 border-accent-300 text-accent-700' : 'bg-gray-50 border-gray-200 text-gray-500' },
+                    { label: 'Score moyen validé', value: graded.length > 0 ? `${avgScore}%` : '—', color: avgScore >= 70 ? 'bg-success-50 border-success-200 text-success-700' : 'bg-gray-50 border-gray-200 text-gray-500' },
                 ].map(({ label, value, color }) => (
                     <div key={label} className={`rounded-xl border p-5 ${color}`}>
                         <div className="text-2xl font-bold">{value}</div>
@@ -181,14 +181,14 @@ export default function EvaluationsPage() {
 
             {/* Corrections en attente (chef d'unité / approbateur) */}
             {canApprove(user) && pendingApproval.length > 0 && (
-                <div className="card border-l-4 border-purple-500">
+                <div className="card border-l-4 border-accent-500">
                     <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <AlertTriangle size={18} className="text-purple-600" />
+                        <AlertTriangle size={18} className="text-accent-600" />
                         Corrections à valider ({pendingApproval.length})
                     </h2>
                     <div className="space-y-3">
                         {pendingApproval.map((session: ExamSession) => (
-                            <div key={session.id} className="flex items-center justify-between p-3 rounded-xl bg-purple-50 border border-purple-100">
+                            <div key={session.id} className="flex items-center justify-between p-3 rounded-xl bg-accent-50 border border-accent-100">
                                 <div>
                                     <div className="text-sm font-medium text-gray-900">
                                         {session.agent_detail?.first_name} {session.agent_detail?.last_name}
@@ -196,12 +196,12 @@ export default function EvaluationsPage() {
                                     </div>
                                     <div className="text-xs text-gray-500 mt-0.5">
                                         {session.exam_detail?.title} — Score provisoire :
-                                        <strong className={`ml-1 ${Number(session.score ?? 0) >= (session.exam_detail?.passing_score ?? 70) ? 'text-green-600' : 'text-red-600'}`}>
+                                        <strong className={`ml-1 ${Number(session.score ?? 0) >= (session.exam_detail?.passing_score ?? 70) ? 'text-success-600' : 'text-danger-600'}`}>
                                             {session.score ?? '?'}/100
                                         </strong>
                                     </div>
                                     {session.graded_by_detail && (
-                                        <div className="text-xs text-purple-600 mt-0.5">
+                                        <div className="text-xs text-accent-600 mt-0.5">
                                             Corrigé par : {session.graded_by_detail?.first_name} {session.graded_by_detail?.last_name}
                                         </div>
                                     )}
@@ -210,13 +210,13 @@ export default function EvaluationsPage() {
                                     <button
                                         onClick={() => approveMut.mutate(session.id)}
                                         disabled={approveMut.isPending}
-                                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-success-600 hover:bg-success-700 rounded-lg transition-colors"
                                     >
                                         <ThumbsUp size={12} /> Approuver
                                     </button>
                                     <button
                                         onClick={() => { setRejectSessionId(session.id); setRejectReason('') }}
-                                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-danger-500 hover:bg-danger-600 rounded-lg transition-colors"
                                     >
                                         <ThumbsDown size={12} /> Rejeter
                                     </button>
@@ -260,7 +260,7 @@ export default function EvaluationsPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
-                                        <span className={`badge text-xs ${exam.exam_status === 'PUBLISHED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                        <span className={`badge text-xs ${exam.exam_status === 'PUBLISHED' ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
                                             {exam.exam_status === 'PUBLISHED' ? 'Publié' : 'Brouillon'}
                                         </span>
                                         {/* Un évaluateur compose l'examen ; un agent le passe. */}
@@ -322,12 +322,12 @@ export default function EvaluationsPage() {
                                             <div className="text-xs text-gray-500">
                                                 {session.exam_detail?.title ?? '—'}
                                                 {session.score != null &&
-                                                    <span className={`ml-2 font-semibold ${Number(session.score) >= (session.exam_detail?.passing_score ?? 70) ? 'text-green-600' : 'text-red-500'}`}>
+                                                    <span className={`ml-2 font-semibold ${Number(session.score) >= (session.exam_detail?.passing_score ?? 70) ? 'text-success-600' : 'text-danger-500'}`}>
                                                         {session.score}/100
                                                     </span>
                                                 }
                                                 {pending > 0 && (
-                                                    <span className="ml-2 text-amber-600">
+                                                    <span className="ml-2 text-warning-600">
                                                         {pending} réponse(s) à corriger
                                                     </span>
                                                 )}
@@ -341,7 +341,7 @@ export default function EvaluationsPage() {
                                                         submitApprovalMut.mutate(session.id)
                                                     }}
                                                     disabled={submitApprovalMut.isPending}
-                                                    className="text-xs px-2 py-1 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors"
+                                                    className="text-xs px-2 py-1 bg-accent-100 text-accent-700 hover:bg-accent-200 rounded-lg transition-colors"
                                                 >
                                                     Soumettre
                                                 </button>
@@ -442,7 +442,7 @@ export default function EvaluationsPage() {
                             </button>
                         </div>
                         <textarea
-                            className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[100px] resize-none"
+                            className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-danger-500 min-h-[100px] resize-none"
                             placeholder="Expliquer pourquoi la correction est rejetée..."
                             value={rejectReason}
                             onChange={e => setRejectReason(e.target.value)}
@@ -457,7 +457,7 @@ export default function EvaluationsPage() {
                             <button
                                 onClick={() => rejectSessionId && rejectMut.mutate({ id: rejectSessionId, reason: rejectReason })}
                                 disabled={!rejectReason.trim() || rejectMut.isPending}
-                                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-xl disabled:opacity-40"
+                                className="px-4 py-2 text-sm text-white bg-danger-600 hover:bg-danger-700 rounded-xl disabled:opacity-40"
                             >
                                 Confirmer le rejet
                             </button>

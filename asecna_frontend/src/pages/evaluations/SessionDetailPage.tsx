@@ -84,7 +84,7 @@ function AnswerCard({
                     : null
 
     return (
-        <div className={`card p-5 border-l-4 ${alreadyGraded ? 'border-l-green-500' : 'border-l-amber-400'}`}>
+        <div className={`card p-5 border-l-4 ${alreadyGraded ? 'border-l-success-500' : 'border-l-warning-400'}`}>
             <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -99,7 +99,7 @@ function AnswerCard({
                     <p className="text-sm font-medium text-gray-900">{question?.text ?? '(énoncé indisponible)'}</p>
                 </div>
                 {alreadyGraded && (
-                    <span className="shrink-0 text-sm font-semibold text-green-700">
+                    <span className="shrink-0 text-sm font-semibold text-success-700">
                         {answer.evaluator_score} / {maxPoints}
                     </span>
                 )}
@@ -115,9 +115,9 @@ function AnswerCard({
             {/* Le corrigé n'est présent que si le backend nous l'a envoyé,
                 c'est-à-dire pour un profil habilité à corriger. */}
             {question?.correct_answer && (
-                <div className="rounded-lg bg-green-50 border border-green-100 p-3 mb-3">
-                    <p className="text-xs uppercase tracking-wide text-green-600 mb-1">Réponse attendue</p>
-                    <p className="text-sm text-green-900 whitespace-pre-wrap">{question.correct_answer}</p>
+                <div className="rounded-lg bg-success-50 border border-success-100 p-3 mb-3">
+                    <p className="text-xs uppercase tracking-wide text-success-600 mb-1">Réponse attendue</p>
+                    <p className="text-sm text-success-900 whitespace-pre-wrap">{question.correct_answer}</p>
                 </div>
             )}
 
@@ -154,14 +154,14 @@ function AnswerCard({
                                 <button
                                     type="button"
                                     onClick={() => setIsCorrect(true)}
-                                    className={`px-3 py-2 text-sm flex items-center gap-1.5 transition-colors ${isCorrect ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                                    className={`px-3 py-2 text-sm flex items-center gap-1.5 transition-colors ${isCorrect ? 'bg-success-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                                 >
                                     <CheckCircle2 size={14} /> Correcte
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setIsCorrect(false)}
-                                    className={`px-3 py-2 text-sm flex items-center gap-1.5 transition-colors ${!isCorrect ? 'bg-red-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                                    className={`px-3 py-2 text-sm flex items-center gap-1.5 transition-colors ${!isCorrect ? 'bg-danger-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                                 >
                                     <XCircle size={14} /> Incorrecte
                                 </button>
@@ -177,7 +177,7 @@ function AnswerCard({
                     </div>
 
                     {scoreError && (
-                        <p className="text-xs text-red-600 flex items-center gap-1">
+                        <p className="text-xs text-danger-600 flex items-center gap-1">
                             <AlertTriangle size={12} /> {scoreError}
                         </p>
                     )}
@@ -198,7 +198,7 @@ function AnswerCard({
                                 <span className="text-gray-500">Note attribuée : </span>
                                 <span className="font-semibold">{answer.evaluator_score} / {maxPoints}</span>
                                 {answer.is_correct !== null && (
-                                    <span className={`ml-2 badge ${answer.is_correct ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    <span className={`ml-2 badge ${answer.is_correct ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'}`}>
                                         {answer.is_correct ? 'Correcte' : 'Incorrecte'}
                                     </span>
                                 )}
@@ -353,13 +353,13 @@ export default function SessionDetailPage() {
             </div>
 
             {flash && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-success-50 text-success-800 border border-success-200' : 'bg-danger-50 text-danger-800 border border-danger-200'}`}>
                     {flash.text}
                 </div>
             )}
 
             {status === 'REJECTED' && session.rejection_reason && (
-                <div className="rounded-lg px-4 py-3 bg-red-50 border border-red-200 text-sm text-red-800">
+                <div className="rounded-lg px-4 py-3 bg-danger-50 border border-danger-200 text-sm text-danger-800">
                     <span className="font-semibold">Motif du rejet par le chef d'unité : </span>
                     {session.rejection_reason}
                 </div>
@@ -386,7 +386,7 @@ export default function SessionDetailPage() {
                             <p className="font-semibold text-gray-900">
                                 {session.score !== null ? `${session.score} / 100` : '—'}
                                 {session.is_passed !== null && (
-                                    <span className={`ml-2 badge ${session.is_passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    <span className={`ml-2 badge ${session.is_passed ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'}`}>
                                         {session.is_passed ? 'Admis' : 'Non admis'}
                                     </span>
                                 )}
@@ -402,7 +402,7 @@ export default function SessionDetailPage() {
                                 title={pending > 0
                                     ? `${pending} réponse(s) restent à corriger`
                                     : "Soumettre la correction au chef d'unité"}
-                                className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                                className="px-4 py-2 rounded-lg text-sm font-medium bg-accent-600 text-white hover:bg-accent-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
                             >
                                 <Send size={15} /> Soumettre au chef d'unité
                             </button>
@@ -412,13 +412,13 @@ export default function SessionDetailPage() {
                                 <button
                                     onClick={() => approveMut.mutate()}
                                     disabled={approveMut.isPending}
-                                    className="px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 transition-colors flex items-center gap-1.5"
+                                    className="px-4 py-2 rounded-lg text-sm font-medium bg-success-600 text-white hover:bg-success-700 disabled:opacity-40 transition-colors flex items-center gap-1.5"
                                 >
                                     <ShieldCheck size={15} /> Approuver
                                 </button>
                                 <button
                                     onClick={() => setRejectOpen(true)}
-                                    className="px-4 py-2 rounded-lg text-sm font-medium bg-white border border-red-200 text-red-700 hover:bg-red-50 transition-colors"
+                                    className="px-4 py-2 rounded-lg text-sm font-medium bg-white border border-danger-200 text-danger-700 hover:bg-danger-50 transition-colors"
                                 >
                                     Rejeter
                                 </button>
@@ -428,7 +428,7 @@ export default function SessionDetailPage() {
                 </div>
 
                 {isEvaluator && pending > 0 && (status === 'CORRECTING' || status === 'REJECTED') && (
-                    <p className="text-xs text-amber-700 mt-3 flex items-center gap-1">
+                    <p className="text-xs text-warning-700 mt-3 flex items-center gap-1">
                         <AlertTriangle size={12} />
                         {pending} réponse(s) n'ont pas encore été corrigées — la soumission restera
                         refusée tant qu'il en reste.
@@ -438,7 +438,7 @@ export default function SessionDetailPage() {
 
             {/* Formulaire de rejet */}
             {rejectOpen && (
-                <div className="card p-5 border border-red-200">
+                <div className="card p-5 border border-danger-200">
                     <h3 className="font-semibold text-gray-900 mb-2">Motif du rejet</h3>
                     <p className="text-sm text-gray-500 mb-3">
                         Le motif est obligatoire : il est transmis à l'évaluateur, qui pourra
@@ -448,14 +448,14 @@ export default function SessionDetailPage() {
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-danger-400"
                         placeholder="Expliquer pourquoi la correction est rejetée…"
                     />
                     <div className="flex gap-2 mt-3">
                         <button
                             onClick={() => rejectMut.mutate(rejectReason)}
                             disabled={!rejectReason.trim() || rejectMut.isPending}
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-danger-600 text-white hover:bg-danger-700 disabled:opacity-40"
                         >
                             Confirmer le rejet
                         </button>
