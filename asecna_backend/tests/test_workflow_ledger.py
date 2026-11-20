@@ -17,7 +17,7 @@ from apps.mentoring.models import MentoringRecord
 from apps.reports.models import Report
 from apps.workflows.models import ApprovalWorkflow
 
-from .test_api_contract import ApiContractTestCase, make_user
+from .test_api_contract import ApiContractTestCase
 
 
 def ledger_for(obj):

@@ -46,15 +46,18 @@ src/
 │   ├── client.ts     ← Axios : jetons JWT, rafraîchissement, taille de page, erreurs
 │   └── index.ts      ← Une fonction par endpoint, groupée par module
 ├── components/
-│   └── Layout.tsx    ← Menu latéral par rôle, en-tête, photo de profil
+│   ├── Layout.tsx    ← Menu latéral par rôle, en-tête, photo de profil
+│   └── ARCEPBookSections.tsx ← Fiche du titulaire et tableau des échéances,
+│                               partagés par l'écran Carnets et la fiche agent
 ├── pages/
 │   ├── auth/         ← Connexion
 │   ├── dashboard/    ← Tableau de bord, une vue par rôle (7)
 │   ├── agents/       ← Annuaire et fiche agent (8 onglets)
 │   ├── probation/    ← Périodes d'essai
 │   ├── mentoring/    ← Fiches de mentorat
-│   ├── arcep/        ← Carnets, entrées, signatures
-│   ├── evaluations/  ← Liste, composition d'examen, correction, passage d'épreuve
+│   ├── arcep/        ← Carnets : fiche du titulaire, qualifications et échéances,
+│   │                   entrées, signatures
+│   ├── evaluations/  ← Liste, composition d'examen (QCM), correction, passage d'épreuve
 │   ├── training/     ← Formations, cours, stages, maintien de qualification
 │   ├── reports/      ← Rapports de période
 │   ├── units/        ← Unités organisationnelles

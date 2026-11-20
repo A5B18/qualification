@@ -9,7 +9,9 @@ from django.utils import timezone
 
 from apps.workflows import services as workflows
 
-from core.permissions import IsEvaluator, IsUnitChief, IsEvaluatorOrInstructor, IsApproverOrUnitChief
+from core.permissions import (
+    IsEvaluator, IsEvaluatorOrInstructor, IsApproverOrUnitChief,
+)
 from .models import Question, Exam, ExamSession, Answer
 from .serializers import (
     QuestionSerializer, ExamSerializer, ExamSessionSerializer,
@@ -117,11 +119,8 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         questions = exam.questions.filter(is_active=True).order_by('id')
         user = request.user
-        privileged = (
-            user.is_admin
-            or user.has_role('EVALUATOR')
-            or user.has_role('INSTRUCTOR')
-            or user.has_role('UNIT_CHIEF')
+        privileged = user.is_admin or user.has_any_role(
+            'EVALUATOR', 'INSTRUCTOR', 'UNIT_CHIEF',
         )
         serializer_cls = QuestionSerializer if privileged else QuestionPublicSerializer
         data = serializer_cls(questions, many=True).data
@@ -197,7 +196,7 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
         base = ExamSession.objects.select_related(
             'exam', 'agent', 'graded_by', 'approved_by',
         )
-        if user.is_admin or user.has_role('EVALUATOR') or user.has_role('UNIT_CHIEF'):
+        if user.is_admin or user.has_any_role('EVALUATOR', 'UNIT_CHIEF'):
             qs = base.all()
         else:
             # Agent standard : uniquement ses propres sessions
@@ -239,11 +238,8 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
         """
         session = self.get_object()
         user = request.user
-        privileged = (
-            user.is_admin
-            or user.has_role('EVALUATOR')
-            or user.has_role('UNIT_CHIEF')
-            or user.has_role('APPROVER')
+        privileged = user.is_admin or user.has_any_role(
+            'EVALUATOR', 'UNIT_CHIEF', 'APPROVER',
         )
 
         answers = list(session.answers
@@ -251,12 +247,12 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
                        .order_by('question_id'))
         data = AnswerSerializer(answers, many=True).data
         if privileged:
+            # Le format et les options sont deja joints par le serializer :
+            # seule la bonne reponse est reservee aux correcteurs.
             for item, answer in zip(data, answers):
                 detail = item.get('question_detail')
                 if isinstance(detail, dict):
                     detail['correct_answer'] = answer.question.correct_answer
-                    detail['question_kind'] = answer.question.question_kind
-                    detail['options'] = answer.question.options
 
         # Questions de l'examen restees sans reponse : elles comptent pour 0
         # dans `compute_score_from_items`, l'ecran doit donc les montrer.
@@ -295,18 +291,43 @@ class ExamSessionViewSet(viewsets.ReadOnlyModelViewSet):
             )
         serializer = AnswerSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            question = Question.objects.get(pk=serializer.validated_data['question'])
-            answer, _ = Answer.objects.update_or_create(
-                session=session, question=question,
-                defaults={'response': serializer.validated_data['response']},
-            )
-            return Response(AnswerSerializer(answer).data)
-        except Question.DoesNotExist:
+
+        # La question doit appartenir a l'examen de la session. Sans ce
+        # controle un agent pouvait repondre a n'importe quelle question de la
+        # banque : la reponse n'entrait dans aucun bareme et bloquait la
+        # correction, puisque `submit-for-approval` exige que toute reponse
+        # de la session soit notee.
+        question = session.exam.questions.filter(
+            pk=serializer.validated_data['question'], is_active=True,
+        ).first()
+        if question is None:
             return Response(
-                {'error': {'code': 'not_found', 'message': 'Question introuvable.'}},
+                {'error': {'code': 'not_found',
+                           'message': "Cette question ne fait pas partie de l'examen."}},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        # QCM : la reponse est forcement l'une des options proposees.
+        response_text = (serializer.validated_data['response'] or '').strip()
+        options = question.clean_options
+        chosen = next(
+            (opt for opt in options if opt.casefold() == response_text.casefold()),
+            None,
+        )
+        if chosen is None:
+            return Response(
+                {'error': {'code': 'bad_request',
+                           'message': "La réponse doit être l'une des options "
+                                      "proposées par le QCM.",
+                           'options': options}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        answer, _ = Answer.objects.update_or_create(
+            session=session, question=question,
+            defaults={'response': chosen},
+        )
+        return Response(AnswerSerializer(answer).data)
 
     @action(detail=True, methods=['post'], url_path='finalize')
     def finalize(self, request, pk=None):

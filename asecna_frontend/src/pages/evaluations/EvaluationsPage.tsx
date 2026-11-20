@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiErrorMessage } from '../../api/client'
 import type { User, ExamSession, Exam, Training } from '../../types'
+import { hasAnyRole } from '../../utils/roles'
 
 const SESSION_STATUS_LABELS: Record<string, string> = {
     IN_PROGRESS: 'En cours',
@@ -27,17 +28,11 @@ const SESSION_STATUS_COLORS: Record<string, string> = {
     REJECTED: 'bg-danger-100 text-danger-700',
 }
 
-function canCreateExam(user: User | null): boolean {
-    const roles: string[] = user?.roles ?? []
-    return user?.is_superuser || user?.is_admin ||
-        roles.includes('ADMIN') || roles.includes('EVALUATOR') || roles.includes('INSTRUCTOR')
-}
+/** Composition d'un examen — backend : `IsEvaluatorOrInstructor`. */
+const canCreateExam = (user: User | null) => hasAnyRole(user, 'EVALUATOR', 'INSTRUCTOR')
 
-function canApprove(user: User | null): boolean {
-    const roles: string[] = user?.roles ?? []
-    return user?.is_superuser || user?.is_admin ||
-        roles.includes('ADMIN') || roles.includes('UNIT_CHIEF') || roles.includes('APPROVER')
-}
+/** Validation d'une correction — backend : `IsApproverOrUnitChief`. */
+const canApprove = (user: User | null) => hasAnyRole(user, 'UNIT_CHIEF', 'APPROVER')
 
 export default function EvaluationsPage() {
     const { user } = useAuth()

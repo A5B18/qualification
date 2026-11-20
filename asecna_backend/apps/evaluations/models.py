@@ -8,22 +8,42 @@ Workflow de correction (manuel par les évaluateurs) :
   4. Chef d'unité approuve → GRADED (score officiel enregistré) ou REJECTED
 
 Règle métier :
+  - Toute question d'évaluation est un QCM : un énoncé, au moins deux options
+    proposées, et une bonne réponse qui figure parmi ces options. Les formats
+    « Vrai/Faux » et « réponse ouverte » ont été retirés (migration 0003) :
+    une réponse libre ne peut pas être corrigée de façon reproductible, et le
+    Vrai/Faux n'est qu'un QCM à deux options.
   - Score de réussité basé sur Training.passing_score (70 pour probabilité, 80 pour qualification)
   - Questions par catégories : GENERAL, TECHNICAL, UNIT_SPECIFIC
   - Niveaux de difficulté 1 à 5
 """
 
-from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.core.exceptions import ValidationError
-from django.utils.translation import gettext_lazy as _
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db import models
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from apps.training.models import Training
 
 
 class Question(models.Model):
-    """Question d'examen avec type et niveau de difficulté."""
+    """
+    Question d'examen — toujours un QCM.
+
+    Invariants garantis par `clean()`, que le serializer applique après avoir
+    normalisé les options :
+      - au moins MIN_OPTIONS options non vides, au plus MAX_OPTIONS ;
+      - aucun doublon parmi les options ;
+      - `correct_answer` figure parmi les options.
+
+    Sans ces invariants un QCM pouvait être enregistré sans aucune option :
+    l'agent recevait un énoncé sans choix, et la correction n'avait plus de
+    référence opposable.
+    """
 
     class QuestionType(models.TextChoices):
         GENERAL        = 'GENERAL',        _('Généralités')
@@ -31,21 +51,30 @@ class Question(models.Model):
         UNIT_SPECIFIC  = 'UNIT_SPECIFIC',  _('Spécifique à l\'unité')
 
     class QuestionKind(models.TextChoices):
+        """Un seul format d'évaluation : le QCM (cf. docstring du module)."""
         MCQ  = 'MCQ',  _('QCM (choix multiple)')
-        TF   = 'TF',   _('Vrai/Faux')
-        OPEN = 'OPEN', _('Réponse ouverte')
+
+    #: Bornes du nombre de propositions d'un QCM.
+    MIN_OPTIONS = 2
+    MAX_OPTIONS = 6
 
     training        = models.ForeignKey(Training, on_delete=models.SET_NULL, null=True, blank=True,
                                         related_name='questions')
     question_type   = models.CharField(max_length=20, choices=QuestionType.choices)
-    question_kind   = models.CharField(max_length=10, choices=QuestionKind.choices, default=QuestionKind.MCQ)
+    question_kind   = models.CharField(max_length=10, choices=QuestionKind.choices,
+                                       default=QuestionKind.MCQ,
+                                       verbose_name=_('Format'),
+                                       help_text=_('QCM — seul format accepté.'))
     text            = models.TextField(verbose_name=_('Énoncé'))
     difficulty      = models.PositiveSmallIntegerField(
         default=1,
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         verbose_name=_('Difficulté'), help_text=_('1 = facile, 5 = très difficile'),
     )
-    correct_answer  = models.TextField(verbose_name=_('Bonne réponse'))
+    correct_answer  = models.TextField(
+        verbose_name=_('Bonne réponse'),
+        help_text=_('Doit être l\'une des options proposées.'),
+    )
     options         = models.JSONField(default=list, blank=True,
                                        verbose_name=_('Options (QCM)'))  # ["A", "B", "C", "D"]
     points          = models.PositiveSmallIntegerField(default=1, verbose_name=_('Points'))
@@ -60,6 +89,78 @@ class Question(models.Model):
         db_table = 'evaluations_question'
         indexes  = [models.Index(fields=['training', 'question_type', 'difficulty'],
                                  name='idx_question_lookup')]
+
+    # ── Normalisation et contrôles du QCM ────────────────────────────────────
+
+    @staticmethod
+    def normalize_options(options) -> list:
+        """
+        Nettoie une liste d'options : espaces rognés, vides écartés.
+
+        Le formulaire de composition propose quatre champs ; les deux derniers
+        restent souvent vides et n'ont pas à rejoindre la base.
+        """
+        if not options:
+            return []
+        if isinstance(options, str):
+            options = [options]
+        return [str(opt).strip() for opt in options if str(opt).strip()]
+
+    @property
+    def clean_options(self) -> list:
+        """Options telles qu'elles doivent être présentées à l'agent."""
+        return self.normalize_options(self.options)
+
+    def matches(self, response) -> bool:
+        """
+        True si `response` est la bonne réponse du QCM.
+
+        La comparaison ignore la casse et les espaces de bord : un agent qui
+        renvoie l'option exacte reçue ne doit pas être pénalisé par une
+        différence de frappe invisible.
+        """
+        expected = (self.correct_answer or '').strip().casefold()
+        given    = (response or '').strip().casefold()
+        return bool(expected) and expected == given
+
+    def clean(self):
+        """
+        Contrôles métier du QCM — seul format accepté.
+
+        Appelé par `full_clean()` (admin Django) et par le serializer, qui
+        normalise les options avant de valider.
+        """
+        super().clean()
+        errors = {}
+
+        if self.question_kind != self.QuestionKind.MCQ:
+            errors['question_kind'] = (
+                "Seul le format QCM est accepté pour une question d'évaluation."
+            )
+
+        options = self.clean_options
+        if len(options) < self.MIN_OPTIONS:
+            errors['options'] = (
+                f'Un QCM doit proposer au moins {self.MIN_OPTIONS} options.'
+            )
+        elif len(options) > self.MAX_OPTIONS:
+            errors['options'] = (
+                f'Un QCM ne peut pas dépasser {self.MAX_OPTIONS} options.'
+            )
+        elif len({opt.casefold() for opt in options}) != len(options):
+            errors['options'] = 'Deux options du QCM sont identiques.'
+
+        expected = (self.correct_answer or '').strip()
+        if not expected:
+            errors['correct_answer'] = 'La bonne réponse est obligatoire.'
+        elif options and expected.casefold() not in {o.casefold() for o in options}:
+            errors['correct_answer'] = (
+                "La bonne réponse doit être exactement l'une des options "
+                "proposées."
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self) -> str:
         return f"[{self.question_type}] Diff.{self.difficulty} — {self.text[:60]}"
@@ -147,22 +248,30 @@ class ExamSession(models.Model):
         """
         Calcule le score /100 a partir des scores attribues par l'evaluateur.
 
-        Le bareme est celui de l'examen complet, et non celui des seules
-        questions auxquelles l'agent a repondu : sinon un agent qui ne traite
-        qu'une question sur dix et la reussit obtiendrait 100/100.
+        Le bareme est celui de l'examen, et non celui des seules questions
+        auxquelles l'agent a repondu : sinon un agent qui ne traite qu'une
+        question sur dix et la reussit obtiendrait 100/100.
         Les questions laissees sans reponse comptent donc pour 0.
 
         Ne sauvegarde pas — le score n'est officiel qu'apres approbation du chef.
         Retourne un Decimal arrondi a 2 decimales.
         """
-        from decimal import Decimal
-
         answers = self.answers.select_related('question').all()
 
-        # Bareme de reference = total des points de l'examen
-        total_points = self.exam.questions.aggregate(
-            total=models.Sum('points')
-        )['total'] if self.exam_id else None
+        # Bareme de reference = les questions actives de l'examen, auxquelles
+        # s'ajoutent celles auxquelles l'agent a repondu.
+        # Une question retiree de la banque (is_active=False) n'est plus
+        # presentee aux candidats : la compter dans le bareme ferait baisser
+        # le score de tout le monde. Mais si l'agent y a repondu avant son
+        # retrait, elle doit rester au bareme, sinon les points obtenus se
+        # rapporteraient a un total trop petit et le score pourrait depasser
+        # 100.
+        total_points = None
+        if self.exam_id:
+            total_points = self.exam.questions.filter(
+                models.Q(is_active=True)
+                | models.Q(id__in=[a.question_id for a in answers])
+            ).distinct().aggregate(total=models.Sum('points'))['total']
 
         if not total_points:
             # Examen sans questions rattachees : on retombe sur les points
@@ -181,7 +290,6 @@ class ExamSession(models.Model):
         L'évaluateur soumet la correction corrigée pour validation du chef d'unité.
         Met à jour le statut et le score proposé, mais ne le rend pas officiel.
         """
-        from django.utils import timezone
         self.session_status  = self.SessionStatus.PENDING_APPROVAL
         self.score           = score    # provisoire — sera confirmé par le chef
         self.graded_by       = evaluator
@@ -193,7 +301,6 @@ class ExamSession(models.Model):
         Le chef d'unité approuve la correction.
         Le score devient officiel, is_passed est calculé.
         """
-        from django.utils import timezone
         self.session_status = self.SessionStatus.GRADED
         self.is_passed      = self.score is not None and self.score >= self.exam.passing_score
         self.approved_by    = unit_chief
@@ -271,7 +378,6 @@ class Answer(models.Model):
         :param is_correct: bool
         :param feedback: Commentaire de l'évaluateur
         """
-        from django.utils import timezone
         self.evaluator_score = score
         self.is_correct      = is_correct
         self.feedback        = feedback

@@ -3,11 +3,14 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.utils import timezone
 
-from core.permissions import IsApproverOrUnitChief, IsAdministrator
+from core.permissions import (
+    IsApproverOrUnitChief, IsEvaluatorOrUnitChiefOrApprover,
+)
 from apps.workflows import services as workflows
 from .models import Report
 from .serializers import ReportSerializer
@@ -24,7 +27,7 @@ class ReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = Report.objects.select_related('agent', 'created_by', 'approver', 'unit_chief')
-        if user.is_admin or user.has_role('UNIT_CHIEF') or user.has_role('APPROVER'):
+        if user.is_admin or user.has_any_role('UNIT_CHIEF', 'APPROVER'):
             qs = base.all()
         else:
             qs = base.filter(agent=user)
@@ -42,10 +45,34 @@ class ReportViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         if self.action in ('approve', 'reject'):
             return [IsAuthenticated(), IsApproverOrUnitChief()]
-        return [IsAuthenticated()]
+        # Redaction d'un rapport : encadrants seulement.
+        #
+        # L'ecriture retombait sur `IsAuthenticated` : n'importe quel agent
+        # pouvait creer un rapport sur n'importe qui, et modifier ou supprimer
+        # ceux qui le concernaient. L'interface n'offrait le bouton qu'aux
+        # ADMIN / UNIT_CHIEF / EVALUATEUR, mais rien ne l'imposait cote
+        # serveur : la regle n'existait que dans le navigateur.
+        return [IsAuthenticated(), IsEvaluatorOrUnitChiefOrApprover()]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        """Un rapport soumis ou decide n'est plus modifiable."""
+        if serializer.instance.report_status != Report.ReportStatus.DRAFT:
+            raise PermissionDenied(
+                "Un rapport deja soumis ne peut plus etre modifie : "
+                "il faut le rejeter pour le rouvrir."
+            )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Seul un brouillon peut etre supprime ; la trace des decisions reste."""
+        if instance.report_status != Report.ReportStatus.DRAFT:
+            raise PermissionDenied(
+                "Un rapport deja soumis ne peut plus etre supprime."
+            )
+        instance.delete()
 
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):

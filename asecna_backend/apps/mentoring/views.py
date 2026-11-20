@@ -38,7 +38,7 @@ class MentoringRecordViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = MentoringRecord.objects.select_related('agent', 'mentor', 'unit_chief')
-        if user.is_admin or user.has_role('UNIT_CHIEF') or user.has_role('APPROVER'):
+        if user.is_admin or user.has_any_role('UNIT_CHIEF', 'APPROVER'):
             qs = base.all()
         elif user.has_role('MENTOR'):
             qs = base.filter(mentor=user)

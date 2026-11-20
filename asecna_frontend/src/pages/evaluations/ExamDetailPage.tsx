@@ -17,32 +17,37 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
     ArrowLeft, Plus, X, Award, Check, Eye, EyeOff, Trash2, Search,
+    AlertTriangle, ListChecks,
 } from 'lucide-react'
 
 import { evaluationsApi, trainingApi } from '../../api'
 import { apiErrorMessage } from '../../api/client'
 import { useAuth } from '../../store/authContextValue'
 import {
-    QuestionTypeLabels, QuestionKindLabels, ExamStatusLabels, ExamStatusColors,
-    type Question, type Exam, type Training, type QuestionKind, type QuestionType,
+    QuestionTypeLabels, ExamStatusLabels, ExamStatusColors,
+    MCQ_MIN_OPTIONS, MCQ_MAX_OPTIONS,
+    type Question, type Exam, type Training, type QuestionType,
     type User,
 } from '../../types'
+import { hasAnyRole } from '../../utils/roles'
 
-function canCompose(user: User | null): boolean {
-    const roles = user?.roles ?? []
-    return Boolean(
-        user?.is_superuser || user?.is_admin
-        || roles.includes('EVALUATOR') || roles.includes('INSTRUCTOR'),
-    )
-}
+/** Composition d'un examen — backend : `IsEvaluatorOrInstructor`. */
+const canCompose = (user: User | null) => hasAnyRole(user, 'EVALUATOR', 'INSTRUCTOR')
 
+/**
+ * Formulaire de question — QCM uniquement.
+ *
+ * La bonne réponse n'est plus saisie librement : elle se désigne parmi les
+ * options. Un champ libre laissait passer une « réponse attendue » absente
+ * des propositions, et l'agent n'avait alors aucun moyen de répondre juste.
+ * `correct_index` pointe la ligne retenue ; le texte est dérivé à l'envoi.
+ */
 const EMPTY_QUESTION = {
     text: '',
     question_type: 'TECHNICAL' as QuestionType,
-    question_kind: 'MCQ' as QuestionKind,
     difficulty: 1,
     points: 10,
-    correct_answer: '',
+    correct_index: 0,
     options: ['', '', '', ''],
     training: '',
 }
@@ -92,6 +97,21 @@ export default function ExamDetailPage() {
 
     const totalPoints = attached.reduce((acc, q) => acc + q.points, 0)
 
+    // Mêmes règles que `Question.clean()` côté serveur, annoncées avant
+    // l'envoi plutôt que découvertes dans une réponse 400.
+    const filledOptions = form.options.map(o => o.trim()).filter(Boolean)
+    const chosenOption = (form.options[form.correct_index] ?? '').trim()
+    const formError: string | null =
+        form.text.trim() === ''
+            ? "L'énoncé est obligatoire."
+            : filledOptions.length < MCQ_MIN_OPTIONS
+                ? `Un QCM doit proposer au moins ${MCQ_MIN_OPTIONS} options.`
+                : new Set(filledOptions.map(o => o.toLowerCase())).size !== filledOptions.length
+                    ? 'Deux options sont identiques.'
+                    : chosenOption === ''
+                        ? 'Cochez laquelle des options est la bonne réponse.'
+                        : null
+
     const refresh = () => {
         qc.invalidateQueries({ queryKey: ['exam', examId] })
         qc.invalidateQueries({ queryKey: ['question-bank'] })
@@ -107,17 +127,17 @@ export default function ExamDetailPage() {
 
     const createQuestionMut = useMutation({
         mutationFn: async () => {
-            const options = form.question_kind === 'MCQ'
-                ? form.options.map(o => o.trim()).filter(Boolean)
-                : []
+            const trimmed = form.options.map(o => o.trim())
             const created = await evaluationsApi.createQuestion({
                 text: form.text,
                 question_type: form.question_type,
-                question_kind: form.question_kind,
+                question_kind: 'MCQ',
                 difficulty: Number(form.difficulty),
                 points: Number(form.points),
-                correct_answer: form.correct_answer,
-                options,
+                // La bonne réponse est l'option désignée, à la lettre : le
+                // backend refuse une réponse absente des propositions.
+                correct_answer: trimmed[form.correct_index] ?? '',
+                options: trimmed.filter(Boolean),
                 training: form.training ? Number(form.training) : null,
             })
             // Rattachement immédiat : une question créée depuis cet écran est
@@ -255,6 +275,7 @@ export default function ExamDetailPage() {
                                     <label className="block text-xs font-medium text-gray-600 mb-1">Énoncé</label>
                                     <textarea
                                         required rows={2} value={form.text}
+                                        aria-label="Énoncé"
                                         onChange={(e) => setForm(f => ({ ...f, text: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-asecna-500"
                                     />
@@ -275,15 +296,9 @@ export default function ExamDetailPage() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 mb-1">Format</label>
-                                        <select
-                                            value={form.question_kind}
-                                            onChange={(e) => setForm(f => ({ ...f, question_kind: e.target.value as QuestionKind }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                                        >
-                                            {Object.entries(QuestionKindLabels).map(([k, v]) => (
-                                                <option key={k} value={k}>{v}</option>
-                                            ))}
-                                        </select>
+                                        <div className="w-full px-3 py-2 border border-gray-100 bg-gray-50 rounded-lg text-sm text-gray-500 flex items-center gap-1.5">
+                                            <ListChecks size={13} /> QCM
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 mb-1">Difficulté (1-5)</label>
@@ -303,59 +318,88 @@ export default function ExamDetailPage() {
                                     </div>
                                 </div>
 
-                                {form.question_kind === 'MCQ' && (
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                                            Options proposées
-                                        </label>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                            {form.options.map((opt, i) => (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        Options proposées — cochez la bonne réponse
+                                    </label>
+                                    <div className="space-y-2">
+                                        {form.options.map((opt, i) => (
+                                            <div key={i} className="flex items-center gap-2">
                                                 <input
-                                                    key={i} value={opt}
+                                                    type="radio"
+                                                    name="correct-option"
+                                                    aria-label={`Option ${i + 1} : bonne réponse`}
+                                                    checked={form.correct_index === i}
+                                                    onChange={() => setForm(f => ({ ...f, correct_index: i }))}
+                                                    className="accent-success-600 shrink-0"
+                                                />
+                                                <input
+                                                    value={opt}
                                                     placeholder={`Option ${i + 1}`}
                                                     onChange={(e) => setForm(f => ({
                                                         ...f,
                                                         options: f.options.map((o, oi) => oi === i ? e.target.value : o),
                                                     }))}
-                                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
                                                 />
-                                            ))}
-                                        </div>
+                                                {form.options.length > MCQ_MIN_OPTIONS && (
+                                                    <button
+                                                        type="button"
+                                                        title="Retirer cette option"
+                                                        onClick={() => setForm(f => {
+                                                            const options = f.options.filter((_, oi) => oi !== i)
+                                                            // L'index suit la ligne retirée, sinon la
+                                                            // coche se déplacerait sur une autre option.
+                                                            const correct = f.correct_index > i
+                                                                ? f.correct_index - 1
+                                                                : Math.min(f.correct_index, options.length - 1)
+                                                            return { ...f, options, correct_index: Math.max(correct, 0) }
+                                                        })}
+                                                        className="shrink-0 p-2 rounded-lg text-gray-400 hover:text-danger-600 hover:bg-danger-50"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
-                                )}
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                                            Réponse attendue
-                                        </label>
-                                        <input
-                                            required value={form.correct_answer}
-                                            onChange={(e) => setForm(f => ({ ...f, correct_answer: e.target.value }))}
-                                            placeholder="Sert de référence à l'évaluateur lors de la correction"
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                                            Formation (facultatif)
-                                        </label>
-                                        <select
-                                            value={form.training}
-                                            onChange={(e) => setForm(f => ({ ...f, training: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                    {form.options.length < MCQ_MAX_OPTIONS && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm(f => ({ ...f, options: [...f.options, ''] }))}
+                                            className="mt-2 text-xs text-asecna-700 hover:underline flex items-center gap-1"
                                         >
-                                            <option value="">—</option>
-                                            {(trainingsData?.results ?? []).map(t => (
-                                                <option key={t.id} value={t.id}>{t.title}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                            <Plus size={12} /> Ajouter une option
+                                        </button>
+                                    )}
                                 </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        Formation (facultatif)
+                                    </label>
+                                    <select
+                                        value={form.training}
+                                        onChange={(e) => setForm(f => ({ ...f, training: e.target.value }))}
+                                        className="w-full md:w-1/2 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                    >
+                                        <option value="">—</option>
+                                        {(trainingsData?.results ?? []).map(t => (
+                                            <option key={t.id} value={t.id}>{t.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Les mêmes règles que le serveur, annoncées avant l'envoi. */}
+                                {formError && (
+                                    <p className="text-xs text-danger-600 flex items-center gap-1">
+                                        <AlertTriangle size={12} /> {formError}
+                                    </p>
+                                )}
 
                                 <button
                                     type="submit"
-                                    disabled={createQuestionMut.isPending}
+                                    disabled={createQuestionMut.isPending || formError !== null}
                                     className="px-4 py-2 rounded-lg text-sm font-medium bg-asecna-600 text-white hover:bg-asecna-700 disabled:opacity-40"
                                 >
                                     Créer et rattacher
@@ -375,7 +419,7 @@ export default function ExamDetailPage() {
                                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span className="text-xs font-semibold text-gray-400">Q{i + 1}</span>
                                                 <span className="badge bg-gray-100 text-gray-600">
-                                                    {QuestionKindLabels[q.question_kind]}
+                                                    QCM · {q.options?.length ?? 0} options
                                                 </span>
                                                 <span className="badge bg-asecna-50 text-asecna-700">{q.points} pt</span>
                                                 <span className="badge bg-gray-100 text-gray-500">
@@ -383,10 +427,24 @@ export default function ExamDetailPage() {
                                                 </span>
                                             </div>
                                             <p className="text-sm text-gray-900">{q.text}</p>
-                                            {q.correct_answer && (
-                                                <p className="text-xs text-success-700 mt-1">
-                                                    Attendu : {q.correct_answer}
-                                                </p>
+                                            {/* Les propositions telles que l'agent les verra,
+                                                la bonne réponse mise en évidence. */}
+                                            {(q.options?.length ?? 0) > 0 && (
+                                                <ul className="mt-1.5 space-y-0.5">
+                                                    {q.options.map((opt, oi) => {
+                                                        const correct = q.correct_answer?.trim().toLowerCase()
+                                                            === opt.trim().toLowerCase()
+                                                        return (
+                                                            <li key={oi}
+                                                                className={`text-xs flex items-center gap-1.5 ${correct ? 'text-success-700 font-medium' : 'text-gray-500'}`}>
+                                                                {correct
+                                                                    ? <Check size={12} className="shrink-0" />
+                                                                    : <span className="w-3 shrink-0" />}
+                                                                {opt}
+                                                            </li>
+                                                        )
+                                                    })}
+                                                </ul>
                                             )}
                                         </div>
                                         <button
@@ -432,6 +490,7 @@ export default function ExamDetailPage() {
                                             <p className="text-sm text-gray-800 truncate">{q.text}</p>
                                             <p className="text-xs text-gray-400">
                                                 {QuestionTypeLabels[q.question_type]} · {q.points} pt
+                                                {' · '}QCM {q.options?.length ?? 0} options
                                             </p>
                                         </div>
                                         <button

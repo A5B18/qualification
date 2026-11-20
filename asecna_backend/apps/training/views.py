@@ -3,8 +3,9 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
-import datetime
+from django.utils import timezone
 
 from core.permissions import (
     IsInstructor, IsAdministrator, IsEvaluator, IsApproverOrUnitChief,
@@ -18,31 +19,40 @@ from .serializers import (
 )
 
 
-class SpecialtyViewSet(viewsets.ModelViewSet):
+class SpecialtyViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     """
     Spécialités — gérées par l'admin uniquement, consultables par tous.
+
+    La suppression est logique (`is_active=False`). `SoftDeleteMixin` était
+    importé par ce module sans être branché : un DELETE effaçait réellement la
+    ligne, et les profils d'agents qui la référencaient perdaient leur
+    spécialité (FK en SET_NULL) sans trace de ce qu'elle était.
     """
     queryset = Specialty.objects.filter(is_active=True).order_by('code')
     serializer_class = SpecialtySerializer
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdministrator()]
+            # `DEFAULT_PERMISSION_CLASSES` impose déjà l'authentification.
+            return super().get_permissions()
+        return [IsAdministrator()]
 
 
-class TrainingViewSet(viewsets.ModelViewSet):
+class TrainingViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     """
     Formations (qualifiantes EAMAC, e-learning, ateliers).
     Consultation libre ; création/modification réservée à l'admin.
+
+    Suppression logique : une formation supprimée reste référencée par les
+    examens, les stages et les contrôles de maintien déjà passés.
     """
     queryset = Training.objects.filter(is_active=True).order_by('title')
     serializer_class = TrainingSerializer
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdministrator()]
+            return super().get_permissions()
+        return [IsAdministrator()]
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -92,35 +102,39 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         """Un instructeur ne peut modifier que ses propres cours."""
-        user = self.request.user
-        if not user.is_admin and self.get_object().instructor != user:
-            from rest_framework.exceptions import PermissionDenied
+        # `serializer.instance` est l'objet deja charge par la vue :
+        # `self.get_object()` relancait une requete et refaisait les controles
+        # d'objet pour rien.
+        if not self._owns(serializer.instance):
             raise PermissionDenied("Vous ne pouvez modifier que vos propres cours.")
         serializer.save()
+
+    def _owns(self, course) -> bool:
+        """True si l'utilisateur courant peut agir sur ce cours."""
+        user = self.request.user
+        return bool(user.is_admin or course.instructor_id == user.pk)
 
     @action(detail=True, methods=['post'], url_path='publish',
             permission_classes=[IsAuthenticated, IsInstructor])
     def publish(self, request, pk=None):
         """Publier un cours (instructeur propriétaire uniquement)."""
-        course = self.get_object()
-        if not request.user.is_admin and course.instructor != request.user:
-            return Response({'error': {'code': 'forbidden', 'message': 'Accès refusé.'}},
-                            status=status.HTTP_403_FORBIDDEN)
-        course.is_published = True
-        course.save(update_fields=['is_published'])
-        return Response(CourseSerializer(course).data)
+        return self._set_published(True)
 
     @action(detail=True, methods=['post'], url_path='unpublish',
             permission_classes=[IsAuthenticated, IsInstructor])
     def unpublish(self, request, pk=None):
         """Dépublier un cours (instructeur propriétaire uniquement)."""
+        return self._set_published(False)
+
+    def _set_published(self, published: bool) -> Response:
+        """Publication et depublication ne differaient que par un booleen."""
         course = self.get_object()
-        if not request.user.is_admin and course.instructor != request.user:
+        if not self._owns(course):
             return Response({'error': {'code': 'forbidden', 'message': 'Accès refusé.'}},
                             status=status.HTTP_403_FORBIDDEN)
-        course.is_published = False
+        course.is_published = published
         course.save(update_fields=['is_published'])
-        return Response(CourseSerializer(course).data)
+        return Response(self.get_serializer(course).data)
 
 
 class InternshipViewSet(viewsets.ModelViewSet):
@@ -179,8 +193,7 @@ class QualificationMaintenanceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = QualificationMaintenance.objects.select_related('agent', 'training', 'evaluated_by')
-        if (user.is_admin or user.has_role('UNIT_CHIEF')
-                or user.has_role('APPROVER') or user.has_role('EVALUATOR')):
+        if user.is_admin or user.has_any_role('UNIT_CHIEF', 'APPROVER', 'EVALUATOR'):
             qs = base.all()
         else:
             qs = base.filter(agent=user)
@@ -258,31 +271,32 @@ class QualificationMaintenanceViewSet(viewsets.ModelViewSet):
                 {'error': {'code': 'bad_request', 'message': 'Seuls les contrôles en attente peuvent être dispensés.'}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        from django.utils import timezone
         maintenance.maintenance_status = QualificationMaintenance.MaintenanceStatus.WAIVED
         maintenance.notes = request.data.get('notes', 'Dispensé par le chef d\'unité.')
         maintenance.evaluated_by = request.user
         maintenance.evaluated_at = timezone.now()
-        maintenance.save()
+        maintenance.save(update_fields=[
+            'maintenance_status', 'notes', 'evaluated_by', 'evaluated_at', 'updated_at',
+        ])
         return Response(self.get_serializer(maintenance).data)
 
     @action(detail=False, methods=['get'], url_path='overdue')
     def overdue(self, request):
         """
-        Retourne les contrôles en retard (due_date < aujourd'hui et statut PENDING).
-        Réservé aux EVALUATEURS, UNIT_CHIEF et ADMIN.
-        """
-        if not (request.user.is_admin
-                or request.user.has_role('EVALUATOR')
-                or request.user.has_role('UNIT_CHIEF')):
-            return Response({'error': {'code': 'forbidden', 'message': 'Accès refusé.'}},
-                            status=status.HTTP_403_FORBIDDEN)
+        Contrôles de maintien en retard (échéance dépassée, statut PENDING).
 
-        today = datetime.date.today()
+        L'habilitation est portée par `get_permissions`
+        (`IsEvaluatorOrUnitChiefOrApprover`). Le contrôle de rôle qui figurait
+        aussi dans le corps de la vue excluait les APPROBATEURS, pourtant
+        admis par la classe de permission : la porte était ouverte puis
+        refermée deux lignes plus loin.
+        """
         overdue_qs = QualificationMaintenance.objects.filter(
             maintenance_status=QualificationMaintenance.MaintenanceStatus.PENDING,
-            due_date__lt=today,
-        ).select_related('agent').order_by('due_date')
+            due_date__lt=timezone.localdate(),
+        ).select_related('agent', 'training', 'evaluated_by').order_by('due_date')
 
         serializer = self.get_serializer(overdue_qs, many=True)
-        return Response({'count': overdue_qs.count(), 'results': serializer.data})
+        # `len()` sur la liste serialisee : `overdue_qs.count()` relancait une
+        # requete COUNT sur un queryset deja parcouru.
+        return Response({'count': len(serializer.data), 'results': serializer.data})

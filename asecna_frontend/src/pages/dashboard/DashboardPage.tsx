@@ -31,6 +31,7 @@ import type {
     User, ExamSession, MentoringRecord, Report, ProbationPeriod,
     Internship, Training, ApprovalWorkflow, AgentStatus,
 } from '../../types'
+import { detectRole, type RoleKey } from '../../utils/roles'
 
 // ─── Utilitaires communs ──────────────────────────────────────────────────────
 
@@ -595,19 +596,6 @@ function AgentDashboard({ user }: { user: User | null }) {
 }
 
 // ─── Logique de sélection du rôle ────────────────────────────────────────────
-
-type RoleKey = 'admin' | 'unit_chief' | 'approver' | 'evaluator' | 'mentor' | 'instructor' | 'agent'
-
-function detectRole(user: User | null): RoleKey {
-    const roles: string[] = user?.roles ?? []
-    if (user?.is_superuser || user?.is_admin || roles.includes('ADMIN')) return 'admin'
-    if (roles.includes('UNIT_CHIEF')) return 'unit_chief'
-    if (roles.includes('APPROVER')) return 'approver'
-    if (roles.includes('EVALUATOR')) return 'evaluator'
-    if (roles.includes('MENTOR')) return 'mentor'
-    if (roles.includes('INSTRUCTOR')) return 'instructor'
-    return 'agent'
-}
 
 const ROLE_META: Record<RoleKey, { label: string; color: string }> = {
     admin: { label: '🛡️ Administrateur', color: 'bg-danger-100 text-danger-700' },

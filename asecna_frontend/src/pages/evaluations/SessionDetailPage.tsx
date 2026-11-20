@@ -28,15 +28,12 @@ import {
     SessionStatusLabels, SessionStatusColors,
     QuestionTypeLabels,
     type Answer, type ExamSession, type SessionAnswers,
-    type SessionStatus, type QuestionType, type User,
+    type SessionStatus, type QuestionType,
 } from '../../types'
 import { formatDate } from '../../utils/dates'
+import { hasRole } from '../../utils/roles'
 
 // ─── Habilitations ────────────────────────────────────────────────────────────
-
-function hasRole(user: User | null, role: string): boolean {
-    return Boolean(user?.is_superuser || user?.is_admin || user?.roles?.includes(role))
-}
 
 /** États dans lesquels le backend accepte une correction. */
 const GRADABLE: SessionStatus[] = ['SUBMITTED', 'CORRECTING', 'REJECTED']
@@ -62,6 +59,17 @@ function AnswerCard({
     const question = answer.question_detail
     const maxPoints = question?.points ?? 0
     const alreadyGraded = answer.evaluator_score !== null
+
+    // Un QCM se corrige par comparaison : l'option retenue est la bonne ou
+    // elle ne l'est pas. On ne note donc pas a la place de l'evaluateur — le
+    // bareme et le visa du chef restent sa responsabilite — mais on lui
+    // propose le resultat de la comparaison en un clic.
+    const expected = (question?.correct_answer ?? '').trim()
+    const given = (answer.response ?? '').trim()
+    const suggestion = expected === '' ? null : {
+        isCorrect: expected.toLowerCase() === given.toLowerCase(),
+        score: expected.toLowerCase() === given.toLowerCase() ? maxPoints : 0,
+    }
 
     const [score, setScore] = useState<string>(
         answer.evaluator_score !== null ? String(answer.evaluator_score) : '',
@@ -107,14 +115,42 @@ function AnswerCard({
 
             <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 mb-3">
                 <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Réponse de l'agent</p>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                    {answer.response || <span className="text-gray-400 italic">Aucune réponse saisie</span>}
-                </p>
+                {/* Les options du QCM, avec le choix de l'agent et — pour un
+                    correcteur — la bonne réponse. Sans elles on ne voyait pas
+                    ce qui était proposé, donc pas ce qui a été écarté. */}
+                {question?.options && question.options.length > 0 ? (
+                    <ul className="space-y-1">
+                        {question.options.map((opt, oi) => {
+                            const chosen = opt.trim().toLowerCase() === given.toLowerCase()
+                            const correct = expected !== ''
+                                && opt.trim().toLowerCase() === expected.toLowerCase()
+                            return (
+                                <li key={oi} className="text-sm flex items-center gap-2">
+                                    <span className={`w-4 shrink-0 text-center ${chosen ? 'text-asecna-700' : 'text-transparent'}`}>●</span>
+                                    <span className={correct ? 'text-success-800 font-medium' : 'text-gray-700'}>
+                                        {opt}
+                                    </span>
+                                    {chosen && (
+                                        <span className="badge text-xs bg-asecna-50 text-asecna-700">choix de l'agent</span>
+                                    )}
+                                    {correct && (
+                                        <span className="badge text-xs bg-success-100 text-success-700">bonne réponse</span>
+                                    )}
+                                </li>
+                            )
+                        })}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                        {answer.response || <span className="text-gray-400 italic">Aucune réponse saisie</span>}
+                    </p>
+                )}
             </div>
 
             {/* Le corrigé n'est présent que si le backend nous l'a envoyé,
-                c'est-à-dire pour un profil habilité à corriger. */}
-            {question?.correct_answer && (
+                c'est-à-dire pour un profil habilité à corriger. Quand les
+                options sont là, il y est déjà signalé : pas de doublon. */}
+            {question?.correct_answer && !(question.options && question.options.length > 0) && (
                 <div className="rounded-lg bg-success-50 border border-success-100 p-3 mb-3">
                     <p className="text-xs uppercase tracking-wide text-success-600 mb-1">Réponse attendue</p>
                     <p className="text-sm text-success-900 whitespace-pre-wrap">{question.correct_answer}</p>
@@ -135,6 +171,28 @@ function AnswerCard({
                         })
                     }}
                 >
+                    {/* La comparaison est automatique, la décision reste
+                        à l'évaluateur : il applique, puis enregistre. */}
+                    {suggestion && (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className={suggestion.isCorrect ? 'text-success-700' : 'text-danger-700'}>
+                                Comparaison QCM : option{' '}
+                                {suggestion.isCorrect ? 'correcte' : 'erronée'}
+                                {' '}→ {suggestion.score} / {maxPoints}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setScore(String(suggestion.score))
+                                    setIsCorrect(suggestion.isCorrect)
+                                }}
+                                className="px-2.5 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                            >
+                                Appliquer
+                            </button>
+                        </div>
+                    )}
+
                     <div className="flex flex-wrap items-end gap-3">
                         <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">

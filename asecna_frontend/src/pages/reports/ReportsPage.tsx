@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiErrorMessage } from '../../api/client'
 import type { User, Report } from '../../types'
+import { hasAnyRole } from '../../utils/roles'
 
 const STATUS_LABELS: Record<string, string> = {
     DRAFT: 'Brouillon', SUBMITTED: 'Soumis', APPROVED: 'Approuvé ✓', REJECTED: 'Rejeté',
@@ -23,14 +24,11 @@ const TYPE_LABELS: Record<string, string> = {
     ASSESSMENT: 'Bilan', INCIDENT: 'Incident', PROGRESS: 'Avancement', OTHER: 'Autre',
 }
 
-function canCreate(user: User | null) {
-    const r: string[] = user?.roles ?? []
-    return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF') || r.includes('EVALUATOR')
-}
-function canApprove(user: User | null) {
-    const r: string[] = user?.roles ?? []
-    return user?.is_superuser || r.includes('ADMIN') || r.includes('APPROVER') || r.includes('UNIT_CHIEF')
-}
+/** Rédaction d'un rapport — backend : `IsEvaluatorOrUnitChiefOrApprover`. */
+const canCreate = (user: User | null) => hasAnyRole(user, 'UNIT_CHIEF', 'EVALUATOR', 'APPROVER')
+
+/** Décision sur un rapport — backend : `IsApproverOrUnitChief`. */
+const canApprove = (user: User | null) => hasAnyRole(user, 'APPROVER', 'UNIT_CHIEF')
 
 export default function ReportsPage() {
     const { user } = useAuth()

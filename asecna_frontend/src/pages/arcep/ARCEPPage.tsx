@@ -1,19 +1,33 @@
+/**
+ * Carnets ARCEP — releve d'activites vise par le chef d'unite.
+ *
+ * Le carnet ne montrait que le nom du titulaire et ses entrees. C'est un
+ * document opposable : a l'ouverture, il doit porter l'identite complete de
+ * l'agent (nom, prenom, matricule, profession, unite), l'etat de ses
+ * qualifications avec leurs echeances, et l'etat des visas. Ces trois blocs
+ * sont servis par le backend dans `agent_identity`, `qualifications` et
+ * `qualifications_summary`.
+ */
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { arcepApi } from '../../api'
 import { useAuth } from '../../store/authContextValue'
 import {
     BookMarked, Calendar, Clock, Plus, X,
-    PenLine, ChevronDown, ChevronUp, CheckCircle,
+    PenLine, ChevronDown, ChevronUp, CheckCircle, Hourglass,
+    Briefcase, Building2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { apiErrorMessage } from '../../api/client'
-import type { User, ARCEPBook } from '../../types'
-import type { ARCEPEntry } from '../../types'
+import {
+    AgentIdentityCard, QualificationsPanel, QualificationAlertBadge, SectionTitle,
+} from '../../components/ARCEPBookSections'
+import type { User, ARCEPBook, ARCEPEntry } from '../../types'
+import { formatDate } from '../../utils/dates'
+import { hasRole } from '../../utils/roles'
 
-function canSign(user: User | null) {
-    const r: string[] = user?.roles ?? []
-    return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF')
-}
+/** Seul le chef d'unité vise un carnet (backend : `IsUnitChief`). */
+const canSign = (user: User | null) => hasRole(user, 'UNIT_CHIEF')
 export default function ARCEPPage() {
     const { user } = useAuth()
     const qc = useQueryClient()
@@ -35,6 +49,12 @@ export default function ARCEPPage() {
     })
     const books = booksData?.results ?? []
     const totalHoursAll = books.reduce((s: number, b: ARCEPBook) => s + Number(b.total_hours ?? 0), 0)
+    const pendingVisas = books.reduce(
+        (s: number, b: ARCEPBook) => s + Number(b.pending_signature_count ?? 0), 0,
+    )
+    const overdueBooks = books.filter(
+        (b: ARCEPBook) => (b.qualifications_summary?.expired ?? 0) > 0,
+    ).length
 
     const createEntryMut = useMutation({
         mutationFn: (data: Record<string, unknown>) => arcepApi.createEntry(data),
@@ -77,20 +97,28 @@ export default function ARCEPPage() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="card text-center py-4">
-                    <div className="text-3xl font-bold text-success-600">{books.length}</div>
+                    <div className="text-3xl font-bold text-success-600">
+                        {books.filter((b: ARCEPBook) => b.is_active).length}
+                    </div>
                     <div className="text-sm text-gray-500 mt-1">Carnets actifs</div>
                 </div>
                 <div className="card text-center py-4">
                     <div className="text-3xl font-bold text-info-600">{totalHoursAll}h</div>
                     <div className="text-sm text-gray-500 mt-1">Total heures</div>
                 </div>
+                {/* Les deux indicateurs qui decident d'une action : des visas en
+                    retard, et des qualifications dont l'echeance est passee. */}
                 <div className="card text-center py-4">
-                    <div className="text-3xl font-bold text-accent-600">
-                        {books.filter((b: ARCEPBook) => b.is_active).length}
+                    <div className="text-3xl font-bold text-accent-600">{pendingVisas}</div>
+                    <div className="text-sm text-gray-500 mt-1">Entrées sans visa</div>
+                </div>
+                <div className="card text-center py-4">
+                    <div className={`text-3xl font-bold ${overdueBooks > 0 ? 'text-danger-600' : 'text-gray-400'}`}>
+                        {overdueBooks}
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">Actifs</div>
+                    <div className="text-sm text-gray-500 mt-1">Carnets en alerte d'échéance</div>
                 </div>
             </div>
 
@@ -209,6 +237,8 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
     })
     const entries = entriesData?.results ?? []
     const totalH = entries.reduce((s: number, e: ARCEPEntry) => s + Number(e.duration_hours), 0)
+    const identity = book.agent_identity ?? null
+    const summary = book.qualifications_summary
 
     return (
         <div className="card p-0 overflow-hidden">
@@ -219,9 +249,26 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
                     </div>
                     <div>
                         <div className="font-semibold text-gray-900">
-                            {book.agent_detail ? `${book.agent_detail.first_name} ${book.agent_detail.last_name}` : `Agent #${book.agent}`}
+                            {identity?.full_name
+                                ?? (book.agent_detail
+                                    ? `${book.agent_detail.first_name} ${book.agent_detail.last_name}`
+                                    : `Agent #${book.agent}`)}
                         </div>
-                        <div className="text-xs text-gray-400 font-mono mt-0.5">{book.agent_detail?.matricule}</div>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-xs text-gray-400 font-mono">
+                                {identity?.matricule ?? book.agent_detail?.matricule}
+                            </span>
+                            {identity?.profession && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Briefcase size={10} /> {identity.profession}
+                                </span>
+                            )}
+                            {identity?.unit && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Building2 size={10} /> {identity.unit.code}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -230,6 +277,15 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
                         <div className="text-xs text-gray-400">cumulées</div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Ce qui doit sauter aux yeux sans deplier le carnet :
+                            l'etat des echeances et les entrees sans visa. */}
+                        <QualificationAlertBadge summary={summary} />
+                        {(book.pending_signature_count ?? 0) > 0 && (
+                            <span className="badge text-xs bg-accent-100 text-accent-700 flex items-center gap-1"
+                                title="Entrées non couvertes par une signature du chef d'unité">
+                                <Hourglass size={10} /> {book.pending_signature_count} sans visa
+                            </span>
+                        )}
                         <span className={`badge text-xs ${book.is_active ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
                             {book.is_active ? 'Actif' : 'Inactif'}
                         </span>
@@ -253,35 +309,55 @@ function ARCEPBookRow({ book, expanded, onToggle, onAddEntry, onSign, canSign, i
             </div>
 
             {expanded && (
-                <div className="border-t border-gray-100 p-4">
-                    {entries.length === 0 ? (
-                        <p className="text-sm text-gray-400 text-center py-4">Aucune entrée pour ce carnet</p>
-                    ) : (
-                        <div className="space-y-2">
-                            <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-3">
-                                {entries.length} entrée(s) — {totalH}h total
-                            </div>
-                            {entries.map((entry: ARCEPEntry) => (
-                                <div key={entry.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-xl">
-                                    <div>
-                                        <div className="text-sm font-medium text-gray-900">{entry.activity}</div>
-                                        {entry.notes && <div className="text-xs text-gray-500 mt-0.5">{entry.notes}</div>}
-                                        <div className="flex items-center gap-3 mt-1">
-                                            <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                <Calendar size={10} /> {new Date(entry.entry_date).toLocaleDateString('fr-FR')}
-                                            </span>
-                                            <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                <Clock size={10} /> {entry.duration_hours}h
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {entry.is_validated && (
-                                        <CheckCircle size={14} className="text-success-500 flex-shrink-0 mt-0.5" aria-label="Entrée validée" />
-                                    )}
+                <div className="border-t border-gray-100 p-4 space-y-5">
+                    {/* Premiere page du carnet : le titulaire. */}
+                    <AgentIdentityCard identity={identity} book={book} />
+
+                    {/* Deuxieme page : qualifications et echeances. */}
+                    <QualificationsPanel
+                        items={book.qualifications ?? []}
+                        summary={summary}
+                    />
+
+                    <div>
+                        <SectionTitle icon={<Clock size={12} />} label="Relevé d'activités" />
+                        {entries.length === 0 ? (
+                            <p className="text-sm text-gray-400 text-center py-4">Aucune entrée pour ce carnet</p>
+                        ) : (
+                            <div className="space-y-2">
+                                <div className="text-xs text-gray-400 mb-3">
+                                    {entries.length} entrée(s) — {totalH}h total
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                                {entries.map((entry: ARCEPEntry) => (
+                                    <div key={entry.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-xl">
+                                        <div>
+                                            <div className="text-sm font-medium text-gray-900">{entry.activity}</div>
+                                            {entry.notes && <div className="text-xs text-gray-500 mt-0.5">{entry.notes}</div>}
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <span className="text-xs text-gray-400 flex items-center gap-1">
+                                                    <Calendar size={10} /> {formatDate(entry.entry_date)}
+                                                </span>
+                                                <span className="text-xs text-gray-400 flex items-center gap-1">
+                                                    <Clock size={10} /> {entry.duration_hours}h
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {/* Une entree non visee n'est pas officielle : le dire
+                                            plutot que de n'afficher aucun signe. */}
+                                        {entry.is_validated ? (
+                                            <span className="text-xs text-success-600 flex items-center gap-1 flex-shrink-0 mt-0.5">
+                                                <CheckCircle size={12} aria-hidden="true" /> Visée
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0 mt-0.5">
+                                                <Hourglass size={12} aria-hidden="true" /> En attente de visa
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

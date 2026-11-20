@@ -1,58 +1,34 @@
 """
 Système de permissions basé sur les rôles fonctionnels.
 
-Architecture : factory pattern pour éviter le boilerplate répétitif.
-Chaque permission vérifie que l'utilisateur possède le rôle requis
-via la table UserRole (et non via les groups Django natifs).
+Architecture : une fabrique unique produit toutes les classes de permission à
+partir de la liste des rôles autorisés. Chaque permission interroge la table
+`UserRole` (et non les groupes Django natifs), via `User.has_any_role()` qui
+mémorise les rôles actifs pour la durée de la requête.
+
+Les classes composées étaient auparavant écrites à la main en dupliquant le
+corps de la fabrique ; elles en dérivent désormais, ce qui garantit qu'elles
+suivent les mêmes règles (admin toujours autorisé, anonyme toujours refusé).
 """
 
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 # =============================================================================
-# Factory — génère une classe de permission à partir d'un rôle fonctionnel
+# Fabrique
 # =============================================================================
-
-def make_role_permission(role: str, allow_admin: bool = True):
-    """
-    Génère dynamiquement une classe de permission DRF pour un rôle donné.
-
-    Usage :
-        IsEvaluator  = make_role_permission('EVALUATOR')
-        IsInstructor = make_role_permission('INSTRUCTOR')
-
-    :param role: Valeur du champ UserRole.role (ex: 'EVALUATOR')
-    :param allow_admin: Si True, les admins passent toujours (par défaut)
-    """
-
-    class RolePermission(BasePermission):
-        required_role = role
-        _allow_admin = allow_admin
-
-        def has_permission(self, request, view):
-            if not request.user or not request.user.is_authenticated:
-                return False
-            if self._allow_admin and request.user.is_admin:
-                return True
-            return request.user.has_role(self.required_role)
-
-        def has_object_permission(self, request, view, obj):
-            return self.has_permission(request, view)
-
-    # 'UNIT_CHIEF'.capitalize() donnait 'Unit_chief' : on construit un nom propre
-    pretty = ''.join(part.capitalize() for part in role.split('_'))
-    RolePermission.__name__ = f'Is{pretty}'
-    RolePermission.__qualname__ = f'Is{pretty}'
-    return RolePermission
-
 
 def make_any_role_permission(*roles: str, allow_admin: bool = True):
     """
-    Genere une permission DRF qui passe si l'utilisateur possede AU MOINS UN
-    des roles donnes. Evite d'empiler les classes composees a la main.
+    Génère une classe de permission DRF qui passe si l'utilisateur possède
+    AU MOINS UN des rôles donnés.
 
     Usage :
+        IsEvaluator            = make_any_role_permission('EVALUATOR')
         IsEvaluatorOrUnitChief = make_any_role_permission('EVALUATOR', 'UNIT_CHIEF')
+
+    :param roles: valeurs de `UserRole.role` (ex: 'EVALUATOR')
+    :param allow_admin: si True, les administrateurs passent toujours
     """
 
     class AnyRolePermission(BasePermission):
@@ -60,86 +36,87 @@ def make_any_role_permission(*roles: str, allow_admin: bool = True):
         _allow_admin = allow_admin
 
         def has_permission(self, request, view):
-            if not request.user or not request.user.is_authenticated:
+            user = request.user
+            if not user or not user.is_authenticated:
                 return False
-            if self._allow_admin and request.user.is_admin:
+            if self._allow_admin and user.is_admin:
                 return True
-            return any(request.user.has_role(r) for r in self.required_roles)
+            return user.has_any_role(*self.required_roles)
 
         def has_object_permission(self, request, view, obj):
             return self.has_permission(request, view)
 
+    # 'UNIT_CHIEF'.capitalize() donnerait 'Unit_chief' : on construit un nom
+    # propre, lisible dans les messages d'erreur et le schéma OpenAPI.
     pretty = 'Or'.join(
-        ''.join(part.capitalize() for part in r.split('_')) for r in roles
+        ''.join(part.capitalize() for part in role.split('_')) for role in roles
     )
     AnyRolePermission.__name__ = f'Is{pretty}'
     AnyRolePermission.__qualname__ = f'Is{pretty}'
     return AnyRolePermission
 
 
+def make_role_permission(role: str, allow_admin: bool = True):
+    """Cas particulier à un seul rôle — conservé pour la lisibilité des vues."""
+    return make_any_role_permission(role, allow_admin=allow_admin)
+
+
 # =============================================================================
-# Permissions atomiques par rôle
+# Permissions par rôle
 # =============================================================================
 
-IsAdministrator   = make_role_permission('ADMIN',       allow_admin=True)
-IsEvaluator       = make_role_permission('EVALUATOR')
-IsInstructor      = make_role_permission('INSTRUCTOR')
-IsMentor          = make_role_permission('MENTOR')
-IsApprover        = make_role_permission('APPROVER')
-IsUnitChief       = make_role_permission('UNIT_CHIEF')
+IsAdministrator = make_role_permission('ADMIN')
+IsEvaluator     = make_role_permission('EVALUATOR')
+IsInstructor    = make_role_permission('INSTRUCTOR')
+IsMentor        = make_role_permission('MENTOR')
+IsApprover      = make_role_permission('APPROVER')
+IsUnitChief     = make_role_permission('UNIT_CHIEF')
 
-# Combinaisons utilisees par les vues de suivi (alertes J-14, retards, etc.)
+
+# =============================================================================
+# Combinaisons utilisées par les vues
+# =============================================================================
+
+#: Décideurs du workflow d'approbation.
+IsApproverOrUnitChief = make_any_role_permission('APPROVER', 'UNIT_CHIEF')
+
+#: Création et composition des évaluations.
+IsEvaluatorOrInstructor = make_any_role_permission('EVALUATOR', 'INSTRUCTOR')
+
+#: Écrans de suivi (alertes J-14, contrôles en retard).
 IsEvaluatorOrUnitChief = make_any_role_permission('EVALUATOR', 'UNIT_CHIEF')
 IsEvaluatorOrUnitChiefOrApprover = make_any_role_permission(
-    'EVALUATOR', 'UNIT_CHIEF', 'APPROVER'
+    'EVALUATOR', 'UNIT_CHIEF', 'APPROVER',
 )
 
+#: Consultation des dossiers d'un autre agent (annuaire, carnets, rapports).
+IsSupervisor = make_any_role_permission('UNIT_CHIEF', 'APPROVER')
+
 
 # =============================================================================
-# Permissions composées (OR / AND logique)
+# Permissions non liées à un rôle
 # =============================================================================
-
-class IsApproverOrUnitChief(BasePermission):
-    """Approbateur OU chef d'unité — pour les validations de workflow."""
-
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_admin:
-            return True
-        return request.user.has_role('APPROVER') or request.user.has_role('UNIT_CHIEF')
-
 
 class IsAdminOrOwner(BasePermission):
     """
     Administrateur OU propriétaire de la ressource.
-    Le modèle doit exposer un champ/propriété `owner` ou `user`.
+    Le modèle doit exposer un champ/propriété `user` ou `owner`.
     """
 
     def has_object_permission(self, request, view, obj):
-        if not request.user or not request.user.is_authenticated:
+        user = request.user
+        if not user or not user.is_authenticated:
             return False
-        if request.user.is_admin:
+        if user.is_admin:
             return True
         owner = getattr(obj, 'user', None) or getattr(obj, 'owner', None)
-        return owner == request.user
-
-
-class IsEvaluatorOrInstructor(BasePermission):
-    """Évaluateur OU instructeur — pour la création d'évaluations."""
-
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_admin:
-            return True
-        return request.user.has_role('EVALUATOR') or request.user.has_role('INSTRUCTOR')
+        return owner == user
 
 
 class IsReadOnly(BasePermission):
-    """Accès en lecture seule — GET, HEAD, OPTIONS uniquement."""
-
-    SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
+    """Accès en lecture seule — méthodes sûres uniquement (GET, HEAD, OPTIONS)."""
 
     def has_permission(self, request, view):
-        return request.method in self.SAFE_METHODS
+        # `SAFE_METHODS` vient de DRF : la liste était redéfinie ici, au risque
+        # de diverger de la définition du framework.
+        return request.method in SAFE_METHODS

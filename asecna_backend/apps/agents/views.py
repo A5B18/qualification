@@ -1,10 +1,9 @@
 """Views pour agents — compétences, certifications, indicateurs de performance."""
 
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 
-from core.permissions import IsAdministrator, IsEvaluator, IsApproverOrUnitChief
+from core.permissions import IsEvaluator
 from .models import AgentSkill, AgentCertification, PerformanceIndicator
 from .serializers import AgentSkillSerializer, AgentCertificationSerializer, PerformanceIndicatorSerializer
 
@@ -25,7 +24,46 @@ def filter_by_agent(queryset, request):
     return queryset
 
 
-class AgentSkillViewSet(viewsets.ModelViewSet):
+class OwnRecordWriteMixin:
+    """
+    Un agent n'ecrit que dans son propre dossier ; l'administrateur partout.
+
+    Les trois ViewSets de l'app repetaient ce controle, et pas au meme
+    endroit : les competences le posaient sur la creation, la modification et
+    la suppression, les certifications seulement sur les deux premieres. Un
+    chef d'unite — qui voit toutes les certifications — pouvait donc en
+    supprimer une qui ne le concernait pas, alors que la modifier lui etait
+    refuse. Le controle est desormais ecrit une fois et s'applique aux trois
+    verbes.
+    """
+
+    #: Verbe employe dans le message de refus (« ajouter », « declarer »...).
+    own_record_label = 'modifier'
+
+    def _assert_owns(self, agent) -> None:
+        user = self.request.user
+        if not user.is_admin and agent != user:
+            raise PermissionDenied(
+                f"Vous ne pouvez {self.own_record_label} que vos propres éléments."
+            )
+
+    def perform_create(self, serializer):
+        agent = serializer.validated_data.get('agent', self.request.user)
+        self._assert_owns(agent)
+        serializer.save(agent=agent)
+
+    def perform_update(self, serializer):
+        # `serializer.instance` est l'objet deja charge par la vue :
+        # `self.get_object()` relancait la meme requete.
+        self._assert_owns(serializer.instance.agent)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._assert_owns(instance.agent)
+        instance.delete()
+
+
+class AgentSkillViewSet(OwnRecordWriteMixin, viewsets.ModelViewSet):
     """
     Compétences d'un agent.
 
@@ -43,38 +81,16 @@ class AgentSkillViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin or user.has_role('UNIT_CHIEF') or user.has_role('EVALUATOR'):
+        if user.is_admin or user.has_any_role('UNIT_CHIEF', 'EVALUATOR'):
             qs = AgentSkill.objects.all().select_related('agent').order_by('agent', 'name')
         else:
             qs = AgentSkill.objects.filter(agent=user).order_by('name')
         return filter_by_agent(qs, self.request)
 
-    def get_permissions(self):
-        return [IsAuthenticated()]
-
-    def perform_create(self, serializer):
-        """L'agent ne peut créer que ses propres compétences (sauf admin)."""
-        user = self.request.user
-        agent = serializer.validated_data.get('agent', user)
-        if not user.is_admin and agent != user:
-            raise PermissionDenied("Vous ne pouvez ajouter que vos propres compétences.")
-        serializer.save(agent=agent)
-
-    def perform_update(self, serializer):
-        """L'agent ne peut modifier que ses propres compétences."""
-        user = self.request.user
-        if not user.is_admin and self.get_object().agent != user:
-            raise PermissionDenied("Vous ne pouvez modifier que vos propres compétences.")
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        user = self.request.user
-        if not user.is_admin and instance.agent != user:
-            raise PermissionDenied("Vous ne pouvez supprimer que vos propres compétences.")
-        instance.delete()
+    own_record_label = 'gérer'
 
 
-class AgentCertificationViewSet(viewsets.ModelViewSet):
+class AgentCertificationViewSet(OwnRecordWriteMixin, viewsets.ModelViewSet):
     """
     Certifications d'un agent.
 
@@ -91,27 +107,13 @@ class AgentCertificationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin or user.has_role('UNIT_CHIEF') or user.has_role('APPROVER'):
+        if user.is_admin or user.has_any_role('UNIT_CHIEF', 'APPROVER'):
             qs = AgentCertification.objects.all().select_related('agent').order_by('-issue_date')
         else:
             qs = AgentCertification.objects.filter(agent=user).order_by('-issue_date')
         return filter_by_agent(qs, self.request)
 
-    def get_permissions(self):
-        return [IsAuthenticated()]
-
-    def perform_create(self, serializer):
-        user = self.request.user
-        agent = serializer.validated_data.get('agent', user)
-        if not user.is_admin and agent != user:
-            raise PermissionDenied("Vous ne pouvez déclarer que vos propres certifications.")
-        serializer.save(agent=agent)
-
-    def perform_update(self, serializer):
-        user = self.request.user
-        if not user.is_admin and self.get_object().agent != user:
-            raise PermissionDenied("Vous ne pouvez modifier que vos propres certifications.")
-        serializer.save()
+    own_record_label = 'déclarer'
 
 
 class PerformanceIndicatorViewSet(viewsets.ModelViewSet):
@@ -132,7 +134,7 @@ class PerformanceIndicatorViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin or user.has_role('EVALUATOR') or user.has_role('UNIT_CHIEF'):
+        if user.is_admin or user.has_any_role('EVALUATOR', 'UNIT_CHIEF'):
             qs = PerformanceIndicator.objects.all().select_related('agent', 'evaluator').order_by('-year')
         else:
             qs = PerformanceIndicator.objects.filter(agent=user).order_by('-year')
@@ -140,9 +142,10 @@ class PerformanceIndicatorViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
-            return [IsAuthenticated()]
+            # `DEFAULT_PERMISSION_CLASSES` impose deja l'authentification.
+            return super().get_permissions()
         # Seul un évaluateur ou admin peut créer/modifier un indicateur
-        return [IsAuthenticated(), IsEvaluator()]
+        return [IsEvaluator()]
 
     def perform_create(self, serializer):
         serializer.save(evaluator=self.request.user)

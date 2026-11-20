@@ -1,6 +1,10 @@
-.PHONY: help install shell run migrations migrate superuser test fixtures demo clean
+.PHONY: help install shell run migrations migrate superuser test coverage check fixtures demo clean
 
 SETTINGS = config.settings.development
+# Les tests ont leur propre module de settings (base en memoire, hachage
+# rapide, journalisation reduite) : la suite passe de plusieurs minutes a
+# quelques secondes, sans changer une seule regle metier.
+TEST_SETTINGS = config.settings.test
 PYTHON   = .\venv\Scripts\python
 PIP      = .\venv\Scripts\pip
 
@@ -14,6 +18,8 @@ help:
 	@echo "  fixtures    Charge les donnees initiales (unites, specialites)"
 	@echo "  demo        Charge le jeu de donnees de demonstration"
 	@echo "  test        Lance tous les tests unitaires"
+	@echo "  coverage    Lance les tests avec mesure de couverture"
+	@echo "  check       Verifie le projet, les migrations et le schema OpenAPI"
 	@echo "  shell       Lance le shell Django interactif"
 	@echo "  clean       Supprime les fichiers __pycache__ et .pyc"
 
@@ -43,7 +49,17 @@ demo:
 	$(PYTHON) manage.py seed_demo --settings=$(SETTINGS)
 
 test:
-	$(PYTHON) manage.py test --settings=$(SETTINGS) --verbosity=2
+	$(PYTHON) manage.py test --settings=$(TEST_SETTINGS) --verbosity=2
+
+coverage:
+	$(PYTHON) -m coverage run manage.py test --settings=$(TEST_SETTINGS)
+	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage html
+
+check:
+	$(PYTHON) manage.py check --settings=$(SETTINGS)
+	$(PYTHON) manage.py makemigrations --check --dry-run --settings=$(SETTINGS)
+	$(PYTHON) manage.py spectacular --file schema.yml --fail-on-warn --settings=$(SETTINGS)
 
 shell:
 	$(PYTHON) manage.py shell --settings=$(SETTINGS)

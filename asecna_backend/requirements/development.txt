@@ -9,7 +9,7 @@ django-debug-toolbar==8.0.0
 # sur une machine Windows sans compilateur). La 7.17.2 fournit la roue.
 coverage==7.17.2
 
-# Déclarés pour l'outillage, mais non utilisés actuellement : le projet s'appuie
-# sur le lanceur de tests de Django (`manage.py test`), pas sur pytest.
-factory-boy==3.3.3
-pytest-django==4.14.0
+# Le projet s'appuie sur le lanceur de tests de Django (`manage.py test`).
+# `factory-boy` et `pytest-django` etaient declares « pour l'outillage » sans
+# qu'aucun test ne les importe : deux dependances a installer, a mettre a jour
+# et a auditer pour rien. A reintroduire le jour ou l'on bascule sur pytest.

@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode } from 'react'
+import { useState, useCallback, useMemo, type ReactNode } from 'react'
 import type { User, AuthTokens } from '../types'
 import { tokenStore } from '../api/client'
 // Les appels passent par la couche `api/index.ts` comme toutes les
@@ -95,19 +95,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession((prev) => ({ ...prev, user: userData }))
     }, [])
 
-    return (
-        <AuthContext.Provider
-            value={{
-                user: session.user,
-                tokens: session.tokens,
-                login,
-                logout,
-                updateUser,
-                refreshProfile,
-                isLoading,
-            }}
-        >
-            {children}
-        </AuthContext.Provider>
+    /**
+     * La valeur du contexte est mémorisée.
+     *
+     * Elle était reconstruite à chaque rendu du fournisseur : React compare
+     * les valeurs de contexte par identité, donc tous les consommateurs —
+     * c'est-à-dire chaque écran et le menu latéral — se re-rendaient même
+     * lorsque ni l'utilisateur ni les jetons n'avaient changé.
+     */
+    const value = useMemo(
+        () => ({
+            user: session.user,
+            tokens: session.tokens,
+            login,
+            logout,
+            updateUser,
+            refreshProfile,
+            isLoading,
+        }),
+        [session, login, logout, updateUser, refreshProfile, isLoading],
     )
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

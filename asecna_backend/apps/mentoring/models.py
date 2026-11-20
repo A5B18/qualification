@@ -9,6 +9,7 @@ Flux :
 """
 
 from django.db import models
+from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
@@ -102,7 +103,6 @@ class MentoringRecord(models.Model):
 
     def submit(self, unit_chief):
         """Soumettre la fiche au chef d'unité."""
-        from django.utils import timezone
         if self.mentoring_status != self.MentoringStatus.DRAFT:
             raise ValidationError(_("Seules les fiches en brouillon peuvent être soumises."))
         self.unit_chief = unit_chief
@@ -112,7 +112,6 @@ class MentoringRecord(models.Model):
 
     def approve(self, opinion: str = ''):
         """Approuver la fiche (chef d'unité)."""
-        from django.utils import timezone
         if self.mentoring_status != self.MentoringStatus.SUBMITTED:
             raise ValidationError(_("Seules les fiches soumises peuvent être approuvées."))
         self.unit_chief_opinion = opinion

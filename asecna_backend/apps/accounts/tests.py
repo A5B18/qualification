@@ -10,7 +10,7 @@ Couvre :
 
 from django.test import TestCase
 from django.core.exceptions import ValidationError
-from apps.accounts.models import User, UserRole, AgentProfile, FunctionalRole, AgentStatus
+from apps.accounts.models import User, UserRole, FunctionalRole
 
 
 class UserModelTest(TestCase):

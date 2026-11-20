@@ -13,8 +13,12 @@ class MentoringRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model  = MentoringRecord
         fields = '__all__'
+        # Memes raisons que pour les rapports : la machine a etats appartient
+        # aux actions `submit` / `approve` / `reject`. Un mentor pouvait sinon
+        # approuver sa propre fiche par PATCH, sans passer par le chef d'unite.
         read_only_fields = (
             'id', 'created_at', 'updated_at', 'submitted_at', 'approved_at',
+            'mentoring_status', 'unit_chief', 'unit_chief_opinion',
         )
 
     def get_agent_detail(self, obj) -> dict | None:

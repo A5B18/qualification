@@ -1,0 +1,26 @@
+# Mesure de couverture — `make coverage`.
+#
+# Le projet installait `coverage` sans jamais le configurer : la mesure
+# incluait l'environnement virtuel, les migrations et les tests eux-memes, ce
+# qui rendait le pourcentage ininterpretable.
+[run]
+source = apps,core
+branch = True
+omit =
+    */migrations/*
+    */tests.py
+    */tests_*.py
+    */test_*.py
+    */__init__.py
+    */apps.py
+    manage.py
+    config/*
+    venv/*
+
+[report]
+show_missing = True
+skip_covered = True
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError

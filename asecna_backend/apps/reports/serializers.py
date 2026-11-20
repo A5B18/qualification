@@ -14,9 +14,15 @@ class ReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Report
         fields = '__all__'
+        # Le statut et les avis ne se modifient que par les actions dediees
+        # (`submit`, `approve`, `reject`), qui portent les controles de role et
+        # inscrivent la decision au registre d'approbation. Laisses ouverts en
+        # ecriture, ils permettaient a l'agent concerne de faire passer son
+        # propre rapport a APPROVED par un simple PATCH.
         read_only_fields = (
             'id', 'created_at', 'updated_at', 'submitted_at',
-            'approved_at', 'created_by', 'approver',
+            'approved_at', 'created_by', 'approver', 'unit_chief',
+            'report_status', 'approver_opinion', 'unit_chief_opinion',
         )
 
     def get_agent_detail(self, obj) -> dict | None:

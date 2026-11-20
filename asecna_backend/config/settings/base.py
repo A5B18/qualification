@@ -123,6 +123,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'core.pagination.StandardPagination',
     'PAGE_SIZE': 20,
     'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
+    # Quotas des points d'entree sensibles (cf. core.throttling). Seules les
+    # vues qui declarent explicitement une classe de limitation sont
+    # concernees : les listes metier ne sont pas bridees.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': config('THROTTLE_LOGIN', default='10/min'),
+        'password_change': config('THROTTLE_PASSWORD_CHANGE', default='5/min'),
+    },
 }
 
 SIMPLE_JWT = {

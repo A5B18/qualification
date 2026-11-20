@@ -7,15 +7,45 @@ Actions disponibles :
   POST .../reject/   → rejeter avec motif (SUBMITTED → REJECTED)
 """
 
+from django.apps import apps as django_apps
+from django.contrib.contenttypes.prefetch import GenericPrefetch
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.utils import timezone
 
 from core.permissions import IsApproverOrUnitChief
 from .models import ApprovalWorkflow
 from .serializers import ApprovalWorkflowSerializer
+
+
+def _target_querysets():
+    """
+    Querysets de préchargement des objets soumis, un par module raccordé.
+
+    `GenericPrefetch` (Django 5.0) permet d'associer un queryset à chaque
+    modèle visé par une clé générique. Sans lui, le serializer résolvait
+    `content_object` ligne par ligne, puis repartait en base pour l'agent et
+    l'examen de chaque objet : le registre consommait une à deux requêtes par
+    ligne affichée.
+
+    Les modèles sont résolus par leur étiquette, comme `MODULE_LABELS` le fait
+    déjà, pour que l'app `workflows` n'importe pas ses modules consommateurs.
+    """
+    extra_select_related = {
+        'evaluations.examsession': ('agent', 'exam'),
+        'reports.report': ('agent', 'created_by'),
+        'mentoring.mentoringrecord': ('agent', 'mentor'),
+    }
+    querysets = []
+    for label, relations in extra_select_related.items():
+        try:
+            model = django_apps.get_model(label)
+        except LookupError:  # pragma: no cover - module retiré du projet
+            continue
+        querysets.append(model.objects.select_related(*relations))
+    return querysets
 
 
 class ApprovalWorkflowViewSet(viewsets.ModelViewSet):
@@ -48,19 +78,20 @@ class ApprovalWorkflowViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = ApprovalWorkflow.objects.select_related(
-            'submitted_by', 'approver', 'unit_chief', 'content_type'
+            'submitted_by', 'approver', 'unit_chief', 'content_type',
         # `content_object` est une cle generique : sans ce prefetch, le
-        # serializer declenche une requete par ligne pour resoudre l'objet.
-        ).prefetch_related('content_object').order_by('-created_at')
+        # serializer declenche une requete par ligne pour resoudre l'objet,
+        # puis une autre pour son agent et, pour une session, son examen.
+        ).prefetch_related(
+            GenericPrefetch('content_object', _target_querysets()),
+        ).order_by('-created_at')
 
         # Cloisonnement. Le registre servait l'integralite de la table a tout
         # utilisateur authentifie : un agent y lisait les soumissions de ses
         # collegues. Tant qu'il n'etait alimente que par `seed_demo` la fuite
         # restait theorique ; elle ne l'est plus une fois les modules
         # raccordes.
-        if not (user.is_admin
-                or user.has_role('APPROVER')
-                or user.has_role('UNIT_CHIEF')):
+        if not (user.is_admin or user.has_any_role('APPROVER', 'UNIT_CHIEF')):
             qs = qs.filter(submitted_by=user)
 
         # Filtres optionnels
@@ -187,8 +218,7 @@ class ApprovalWorkflowViewSet(viewsets.ModelViewSet):
         Accessible aux approbateurs et chefs d'unité.
         """
         if not (request.user.is_admin
-                or request.user.has_role('APPROVER')
-                or request.user.has_role('UNIT_CHIEF')):
+                or request.user.has_any_role('APPROVER', 'UNIT_CHIEF')):
             return Response(
                 {'error': {'code': 'forbidden', 'message': 'Accès refusé.'}},
                 status=status.HTTP_403_FORBIDDEN,

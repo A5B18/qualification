@@ -1,7 +1,12 @@
 """Serializers pour arcep."""
 
+import datetime
+
 from rest_framework import serializers
 from django.db.models import Sum
+from django.utils import timezone
+
+from .identity import agent_identity, agent_qualifications, qualifications_summary
 from .models import ARCEPBook, ARCEPEntry, ARCEPSignature
 
 
@@ -19,25 +24,121 @@ def _user_brief(user):
 
 
 class ARCEPBookSerializer(serializers.ModelSerializer):
+    """
+    Carnet ARCEP complet : en-tete d'identite, qualifications, releve d'heures.
+
+    Le carnet ne portait que l'identifiant de son titulaire. Or c'est un
+    document opposable : a la relecture, un releve d'activites sans le nom, la
+    profession, l'unite et l'etat des qualifications de l'agent n'est pas
+    exploitable. Trois blocs sont donc joints ici, comme sur la premiere page
+    du carnet papier :
+
+      - `agent_identity`         → nom, prenom, matricule, profession, unite,
+                                   statut de parcours, dates cles, anciennete
+      - `qualifications`         → certifications, controles biennaux et
+                                   stages qualifiants, echeance la plus
+                                   urgente en tete
+      - `qualifications_summary` → compteurs, prochaine echeance, niveau
+                                   d'alerte
+
+    Les requetes correspondantes sont prechargees par la vue
+    (`ARCEPBookViewSet.get_queryset`) : sans cela la liste des carnets
+    declenchait une dizaine de requetes par ligne.
+    """
+
     agent_detail = serializers.SerializerMethodField()
+    agent_identity = serializers.SerializerMethodField()
+    qualifications = serializers.SerializerMethodField()
+    qualifications_summary = serializers.SerializerMethodField()
     total_hours = serializers.SerializerMethodField()
     entries_count = serializers.SerializerMethodField()
+    signatures_count = serializers.SerializerMethodField()
+    last_signed_on = serializers.SerializerMethodField()
+    pending_signature_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ARCEPBook
         fields = '__all__'
         read_only_fields = ('id', 'opened_at')
 
+    # ── Contexte partage ─────────────────────────────────────────────────────
+
+    def _today(self):
+        """Date du jour, calculee une fois par serialisation de la liste."""
+        if 'arcep_today' not in self.context:
+            self.context['arcep_today'] = timezone.localdate()
+        return self.context['arcep_today']
+
+    def _qualifications(self, obj) -> list:
+        """Memorise le calcul : le resume et la liste le partagent."""
+        cache = self.context.setdefault('arcep_qualifications', {})
+        if obj.pk not in cache:
+            cache[obj.pk] = agent_qualifications(obj.agent, today=self._today())
+        return cache[obj.pk]
+
+    # ── Identite et qualifications ───────────────────────────────────────────
+
     def get_agent_detail(self, obj) -> dict | None:
         return _user_brief(obj.agent)
 
+    def get_agent_identity(self, obj) -> dict | None:
+        return agent_identity(obj.agent, today=self._today())
+
+    def get_qualifications(self, obj) -> list:
+        return self._qualifications(obj)
+
+    def get_qualifications_summary(self, obj) -> dict:
+        return qualifications_summary(self._qualifications(obj), today=self._today())
+
+    # ── Releve d'activites ───────────────────────────────────────────────────
+
     def get_total_hours(self, obj) -> float:
-        """Total des heures de toutes les entrees du carnet."""
-        result = obj.entries.aggregate(total=Sum('duration_hours'))
-        return float(result.get('total') or 0)
+        """
+        Total des heures de toutes les entrees du carnet.
+
+        On teste la presence de l'annotation, pas sa valeur : `Sum` vaut None
+        pour un carnet vide, et se rabattre sur ce None relancait une requete
+        d'agregation par carnet sans entree — dix requetes pour dix carnets
+        neufs.
+        """
+        if hasattr(obj, 'total_hours_agg'):
+            return float(obj.total_hours_agg or 0)
+        total = obj.entries.aggregate(total=Sum('duration_hours')).get('total')
+        return float(total or 0)
 
     def get_entries_count(self, obj) -> int:
-        return obj.entries.count()
+        if hasattr(obj, 'entries_count_agg'):
+            return int(obj.entries_count_agg or 0)
+        return len(obj.entries.all())
+
+    def get_signatures_count(self, obj) -> int:
+        return len(obj.signatures.all())
+
+    def get_last_signed_on(self, obj) -> datetime.date | None:
+        """
+        Fin de la derniere periode visee par le chef d'unite.
+
+        Le type de retour est annote : sans lui, drf-spectacular ne sait pas
+        resoudre le champ et le documente en `string` par defaut, avec un
+        avertissement a la generation du schema.
+        """
+        periods = [sig.period_end for sig in obj.signatures.all()]
+        return max(periods) if periods else None
+
+    def get_pending_signature_count(self, obj) -> int:
+        """
+        Entrees qui attendent encore le visa du chef d'unite.
+
+        Information capitale du carnet : une entree non signee n'est pas
+        officielle (cf. `ARCEPEntry.is_validated`). Le calcul se fait en
+        memoire sur les entrees et signatures prechargees, pour ne pas lancer
+        une requete par entree.
+        """
+        periods = [(sig.period_start, sig.period_end) for sig in obj.signatures.all()]
+        return sum(
+            1 for entry in obj.entries.all()
+            if not any(start <= entry.entry_date <= end for start, end in periods)
+        )
 
 
 class ARCEPEntrySerializer(serializers.ModelSerializer):

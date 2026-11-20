@@ -10,9 +10,7 @@ Couvre :
   - compute_score_from_items() basé sur evaluator_score
 """
 
-import datetime
 from django.test import TestCase
-from django.core.exceptions import ValidationError
 
 from apps.accounts.models import User
 from apps.training.models import Specialty, Training

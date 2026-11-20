@@ -31,15 +31,10 @@ import {
     type ApprovalWorkflow, type WorkflowStatus, type User,
 } from '../../types'
 import { formatDate } from '../../utils/dates'
+import { hasAnyRole } from '../../utils/roles'
 
 /** Seuls les décideurs consultent l'ensemble du registre. */
-function canDecide(user: User | null): boolean {
-    const roles = user?.roles ?? []
-    return Boolean(
-        user?.is_superuser || user?.is_admin
-        || roles.includes('APPROVER') || roles.includes('UNIT_CHIEF'),
-    )
-}
+const canDecide = (user: User | null) => hasAnyRole(user, 'APPROVER', 'UNIT_CHIEF')
 
 const MODULE_ICONS: Record<string, typeof FileText> = {
     report: FileText,

@@ -165,6 +165,15 @@ POST   /api/v1/evaluations/exams/{id}/start-session/ → L'agent démarre son é
 Les questions se rattachent à un examen par `PATCH /evaluations/exams/{id}/`
 avec la liste complète des identifiants (`{ "questions": [1, 2, 3] }`).
 
+**Toute question est un QCM.** Les formats « Vrai/Faux » et « réponse ouverte »
+ont été retirés (migration `0003_qcm_only`) : le Vrai/Faux n'était qu'un QCM à
+deux options, et une réponse libre ne se corrige pas de façon reproductible.
+Le serveur refuse donc une question sans au moins deux options, deux options
+identiques, ou une `correct_answer` absente des propositions — et
+`submit-answer` n'accepte de l'agent que l'une des options de la question.
+Les anciennes questions ouvertes ont été désactivées et détachées de leurs
+examens par la migration ; leur énoncé reste en base pour être réécrit en QCM.
+
 ### Cours e-learning
 ```
 GET    /api/v1/training/courses/?training=&is_published=  → Liste filtrée
@@ -191,6 +200,22 @@ GET    /api/v1/arcep/signatures/{id}/covered-entries/ → Entrées couvertes
 `POST /arcep/signatures/` accepte `{ book, comment }` : si `period_start` et
 `period_end` sont omis, la période est déduite des entrées du carnet qui ne sont
 pas encore couvertes par une signature.
+
+**Un carnet n'est pas qu'un relevé d'heures.** C'est un document opposable :
+`GET /arcep/books/` sert donc, avec chaque carnet, la première page de la
+version papier.
+
+| Champ | Contenu |
+|---|---|
+| `agent_identity` | Nom, prénom, matricule, **profession** (spécialité), rôles, unité d'affectation, statut de parcours, dates de recrutement et de qualification, ancienneté, coordonnées |
+| `qualifications` | Certifications, contrôles biennaux et stages qualifiants réunis, **échéance la plus urgente en tête**, avec statut (`VALID`, `EXPIRING`, `EXPIRED`, `PENDING`, `OVERDUE`, `PASSED`, `FAILED`, `WAIVED`, `PERMANENT`) et jours restants |
+| `qualifications_summary` | Compteurs, prochaine échéance à tenir, `alert_level` (`OK` / `WARNING` / `CRITICAL`) |
+| `pending_signature_count`, `last_signed_on` | État des visas du chef d'unité |
+
+Le calcul vit dans `apps/arcep/identity.py` ; la fenêtre d'alerte est de 90
+jours (`EXPIRY_WARNING_DAYS`), le délai de préparation d'un contrôle de
+maintien. Les sources sont préchargées par la vue : le nombre de requêtes ne
+dépend pas du nombre de carnets servis, et un test le vérifie.
 
 ### Registre d'approbation (transversal)
 ```
@@ -248,18 +273,27 @@ déjà le résultat.
 
 ## 🏃 Tests
 
-```powershell
-# Tous les tests (la découverte complète nécessite apps/__init__.py)
-python manage.py test --settings=config.settings.development
+Les tests ont leur propre module de settings, `config.settings.test` : base en
+mémoire, hachage de mot de passe rapide, journalisation réduite aux erreurs.
+Aucune règle fonctionnelle n'y est modifiée — mêmes validateurs, mêmes
+permissions, mêmes règles métier. La suite passe de **plus de quatre minutes à
+moins de cinq secondes**.
 
-# Par app (recommandé pour éviter les conflits)
-python manage.py test apps.probation.tests --settings=config.settings.development
-python manage.py test apps.training.tests --settings=config.settings.development
-python manage.py test apps.evaluations.tests --settings=config.settings.development
-python manage.py test apps.mentoring.tests --settings=config.settings.development
+```powershell
+make test            # equivalent de la commande ci-dessous
+python manage.py test --settings=config.settings.test
+
+# Une suite en particulier
+python manage.py test tests.test_securite --settings=config.settings.test
+
+# Couverture (configuration dans .coveragerc)
+make coverage
+
+# Projet, migrations et schema OpenAPI
+make check
 ```
 
-**Résultats attendus :** `Ran 204 tests ... OK`
+**Résultats attendus :** `Ran 254 tests ... OK`
 
 | Suite | Tests | Portée |
 |---|---|---|
@@ -268,6 +302,9 @@ python manage.py test apps.mentoring.tests --settings=config.settings.developmen
 | `tests.test_api_contract` | 45 | Vues, permissions, serializers, pages HTML |
 | `tests.test_correction_workflow` | 25 | Workflow de correction via l'API, filtres de la fiche agent, cours, reset de mot de passe |
 | `tests.test_workflow_ledger` | 17 | Alimentation du registre par les 3 modules, unicité, cloisonnement |
+| `tests.test_carnet_et_qcm` | 25 | En-tête du carnet ARCEP, échéances, règles du QCM |
+| `tests.test_securite` | 19 | Contournements de workflow, habilitations, mots de passe, journal d'audit, quota de connexion |
+| `tests.test_performance_requetes` | 6 | Le coût d'une liste ne doit pas dépendre du nombre de lignes |
 
 > **Lancez les tests depuis le `venv`.** Le projet exige Django 5.2.19. Avec une
 > série 4.2 installée globalement, les 5 tests de `HtmlPagesTest` échouent sur
@@ -299,8 +336,8 @@ workflow**, afin qu'aucun écran ne soit vide :
 | Comptes | 23 agents, les 7 rôles fonctionnels (dont un cumul), les 7 statuts de parcours |
 | Périodes d'essai | En cours, alerte J-14, réussie, 2<sup>e</sup> tentative, double échec |
 | Mentorat | `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED`, `COMPLETED` |
-| ARCEP | Un carnet par agent qualifié, entrées signées **et** non signées |
-| Évaluations | 6 questions (3 types, 3 formats), 3 examens, une session dans **chacun** des 6 états |
+| ARCEP | Un carnet par agent qualifié, avec sa fiche d'identité et ses échéances, entrées signées **et** non signées |
+| Évaluations | 6 questions QCM (3 types, difficultés 1 à 5), 3 examens, une session dans **chacun** des 6 états |
 | Maintien QF | `PENDING`, en retard, `PASSED`, `FAILED`, `WAIVED` |
 | Formations | Qualifiante, e-learning, atelier, cours publiés et brouillon, stages |
 | Rapports | 3 types × 4 statuts |
@@ -331,6 +368,44 @@ compte de démonstration est **réappliqué à chaque lancement**.
 | Barème = examen complet | Questions sans réponse notées 0 | `ExamSession.compute_score_from_items` |
 | Examen vide non publiable | ≥ 1 question | `ExamViewSet.publish` |
 | Corrigé jamais servi au candidat | — | `QuestionPublicSerializer` |
+| Toute question est un QCM | 2 à 6 options, bonne réponse parmi elles | `Question.clean()`, migration `0003_qcm_only` |
+| Réponse d'agent = une option | Hors options → 400 | `ExamSessionViewSet.submit_answer` |
+| Le carnet ARCEP identifie son titulaire | Nom, profession, unité, échéances | `apps/arcep/identity.py` |
+| Alerte d'échéance de qualification | 90 jours | `arcep.identity.EXPIRY_WARNING_DAYS` |
+
+### Règles portées par le serveur, et non par l'interface
+
+Un statut de workflow ne se change **que** par l'action dédiée : les champs
+correspondants sont en lecture seule dans les serializers
+(`report_status`, `mentoring_status`, `probation_status`, `workflow_status`,
+`score`). Un PATCH qui les contient est accepté — les autres champs sont bien
+enregistrés — mais ils sont ignorés. C'est la seule façon de garantir que le
+contrôle de rôle, la transition d'état et l'inscription au registre
+s'appliquent ensemble.
+
+| Point d'entrée | Habilitation serveur |
+|---|---|
+| Rédiger / modifier un rapport | `IsEvaluatorOrUnitChiefOrApprover`, et brouillon uniquement |
+| Décider (approuver / rejeter) | `IsApproverOrUnitChief` |
+| Noter une copie | `IsEvaluator` |
+| Composer un examen | `IsEvaluatorOrInstructor` |
+| Viser un carnet ARCEP | `IsUnitChief` |
+| Écrire dans le dossier d'un agent | Le titulaire ou l'administrateur (`OwnRecordWriteMixin`) |
+
+### Protections transverses
+
+| Protection | Mise en œuvre |
+|---|---|
+| Quota de connexion | `core.throttling.LoginRateThrottle` — 10/min par IP (`THROTTLE_LOGIN`) |
+| Quota de changement de mot de passe | `PasswordChangeRateThrottle` — 5/min par compte |
+| Robustesse des mots de passe | `AUTH_PASSWORD_VALIDATORS` appliqués par l'API (`run_password_validators`) |
+| Secrets hors du journal d'audit | `AuditMiddleware.SENSITIVE_FIELDS` masque mots de passe **et** jetons |
+| Réglages de production | `manage.py check --deploy` sans avertissement ; `SECRET_KEY` obligatoire |
+
+> **Déploiement multi-processus.** Les quotas s'appuient sur le cache Django.
+> Avec le cache local par défaut, chaque worker gunicorn tient son propre
+> compteur : prévoir un cache partagé (Redis, Memcached) pour que la limite
+> soit globale.
 
 ---
 

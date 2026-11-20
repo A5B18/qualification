@@ -4,14 +4,37 @@ Serializers pour l'app accounts.
 CustomTokenObtainPairSerializer : JWT enrichi avec roles + status de l'agent.
 """
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.contrib.auth import get_user_model
-from django.utils import timezone
 
-from .models import UserRole, AgentProfile, FunctionalRole, AgentStatus
+from .models import AgentProfile, FunctionalRole
 
 User = get_user_model()
+
+
+# =============================================================================
+# Mots de passe
+# =============================================================================
+
+def run_password_validators(password: str, user=None) -> str:
+    """
+    Applique AUTH_PASSWORD_VALIDATORS et traduit l'erreur pour DRF.
+
+    Le projet configure quatre validateurs (longueur, similarite avec
+    l'identite, mots de passe courants, mots de passe numeriques), mais aucun
+    n'etait execute par l'API : seule une longueur minimale de 8 caracteres
+    etait verifiee par le serializer. « 12345678 » etait donc accepte a la
+    creation d'un compte comme au changement de mot de passe, alors que
+    l'admin Django le refusait.
+    """
+    try:
+        validate_password(password, user=user)
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError(list(exc.messages)) from exc
+    return password
 
 
 # =============================================================================
@@ -227,6 +250,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
             'phone', 'password',
         ]
 
+    def validate(self, attrs):
+        # Les validateurs comparent le mot de passe a l'identite de l'agent
+        # (matricule, nom, courriel) : on leur passe donc l'instance en cours
+        # de construction, pas seulement la chaine.
+        candidate = User(**{k: v for k, v in attrs.items() if k != 'password'})
+        run_password_validators(attrs['password'], user=candidate)
+        return attrs
+
     def create(self, validated_data):
         password = validated_data.pop('password')
         user = User(**validated_data)
@@ -262,10 +293,16 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError("L'ancien mot de passe est incorrect.")
         return value
 
+    def validate_new_password(self, value):
+        return run_password_validators(value, user=self.context['request'].user)
+
     def save(self, **kwargs):
         user = self.context['request'].user
         user.set_password(self.validated_data['new_password'])
-        user.save()
+        # `update_fields` : seul le mot de passe change ici. Un save complet
+        # reecrivait toutes les colonnes et pouvait ecraser une modification
+        # concurrente du profil.
+        user.save(update_fields=['password'])
         return user
 
 

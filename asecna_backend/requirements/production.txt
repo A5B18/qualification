@@ -1,12 +1,11 @@
 -r base.txt
 
-# Serveur WSGI (voir docker/Dockerfile, qui tourne sous python:3.11-slim).
+# Serveur WSGI (voir docker/Dockerfile, qui tourne sous python:3.12-slim).
 gunicorn==27.0.0
 
-# ATTENTION : non vérifié localement (pas de build Docker dans cet
-# environnement) et actuellement INUTILISÉ — aucun réglage de
-# config/settings/production.py ne référence django-storages (pas de
-# DEFAULT_FILE_STORAGE / STORAGES ni de backend S3). À ce jour, la série 1.14
-# ne déclare pas encore Django 5.2 dans ses métadonnées : à valider avant tout
-# usage réel du stockage distant, ou à retirer si le besoin ne se concrétise pas.
-django-storages==1.14.6
+# `django-storages` a ete retire : aucun reglage de
+# config/settings/production.py ne le referencait (ni DEFAULT_FILE_STORAGE /
+# STORAGES, ni backend S3), et la serie 1.14 ne declare pas Django 5.2 dans
+# ses metadonnees. Une dependance non utilisee reste une surface d'audit et un
+# risque de conflit de versions. A reintroduire, et a configurer, le jour ou
+# les fichiers deposes partent sur un stockage distant.

@@ -9,11 +9,11 @@ Couvre :
 """
 
 import datetime
+
 from django.test import TestCase
-from django.core.exceptions import ValidationError
 
 from apps.accounts.models import User
-from apps.training.models import Specialty, Training, Course, Internship, QualificationMaintenance
+from apps.training.models import Specialty, Training, Internship, QualificationMaintenance
 
 
 def make_user(matricule, email):

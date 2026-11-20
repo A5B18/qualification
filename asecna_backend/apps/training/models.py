@@ -6,9 +6,14 @@ Hiérarchie :
   Training  → Internship (stage qualifiant ou non qualifiant)
 """
 
-from django.db import models
-from django.utils.translation import gettext_lazy as _
+import logging
+
 from django.conf import settings
+from django.db import models, transaction
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+
+logger = logging.getLogger(__name__)
 
 
 class Specialty(models.Model):
@@ -196,34 +201,55 @@ class QualificationMaintenance(models.Model):
         Met à jour le statut de l'agent selon les règles métier.
           - score >= 70 → PASSED (agent reste QUALIFIED)
           - score < 70  → FAILED (agent passe à SUSPENDED)
-        """
-        from django.utils import timezone
-        from apps.accounts.models import AgentStatus
 
+        Les deux écritures vont ensemble : un contrôle marqué FAILED sans la
+        suspension qui l'accompagne laisserait un agent non qualifié en
+        service. D'où la transaction.
+        """
         self.score = score
         self.evaluated_by = evaluator
         self.evaluated_at = timezone.now()
         self.notes = notes
+        passed = score >= self.MAINTENANCE_SCORE
+        self.maintenance_status = (
+            self.MaintenanceStatus.PASSED if passed else self.MaintenanceStatus.FAILED
+        )
 
-        if score >= self.MAINTENANCE_SCORE:
-            self.maintenance_status = self.MaintenanceStatus.PASSED
-            try:
-                profile = self.agent.agent_profile
-                if profile.status == AgentStatus.SUSPENDED:
-                    profile.status = AgentStatus.QUALIFIED
-                    profile.save(update_fields=['status'])
-            except Exception:
-                pass
-        else:
-            self.maintenance_status = self.MaintenanceStatus.FAILED
-            try:
-                profile = self.agent.agent_profile
-                profile.status = AgentStatus.SUSPENDED
+        with transaction.atomic():
+            self.save()
+            self._apply_status_to_agent(passed)
+
+    def _apply_status_to_agent(self, passed: bool) -> None:
+        """
+        Répercute le résultat sur le parcours de l'agent.
+
+        Un agent sans profil (compte purement technique) n'a pas de parcours à
+        mettre à jour : c'est le seul cas toléré, et il est nommé. Auparavant,
+        un `except Exception: pass` avalait aussi les erreurs de base de
+        données — un contrôle pouvait être enregistré FAILED sans que l'agent
+        soit suspendu, sans trace ni message.
+        """
+        from apps.accounts.models import AgentProfile, AgentStatus
+
+        try:
+            profile = self.agent.agent_profile
+        except AgentProfile.DoesNotExist:
+            logger.info(
+                "Maintien de qualification %s : l'agent %s n'a pas de profil de "
+                "parcours, aucun statut à mettre à jour.",
+                self.pk, self.agent_id,
+            )
+            return
+
+        if passed:
+            # Un maintien réussi ne requalifie que l'agent suspendu ;
+            # les autres statuts de parcours ne sont pas concernés.
+            if profile.status == AgentStatus.SUSPENDED:
+                profile.status = AgentStatus.QUALIFIED
                 profile.save(update_fields=['status'])
-            except Exception:
-                pass
-
-        self.save()
+        else:
+            profile.status = AgentStatus.SUSPENDED
+            profile.save(update_fields=['status'])
 
     def __str__(self) -> str:
         score_str = f' — {self.score}/100' if self.score is not None else ''

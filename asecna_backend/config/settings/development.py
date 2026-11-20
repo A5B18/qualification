@@ -31,7 +31,16 @@ if not USE_POSTGRES:
     }
 # =============================================================================
 
-# Logs SQL des requêtes en développement
+# =============================================================================
+# Journalisation
+#
+# Le journal SQL est desormais optionnel (`LOG_SQL=True` dans .env). Il etait
+# actif en permanence : chaque requete de chaque page imprimait son SQL, la
+# console devenait illisible, et la suite de tests passait l'essentiel de son
+# temps a formater des messages de journal.
+# =============================================================================
+LOG_SQL = config('LOG_SQL', default=False, cast=bool)  # noqa
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -49,7 +58,11 @@ LOGGING = {
     },
     'loggers': {
         'django': {'handlers': ['console'], 'level': 'INFO'},
-        'django.db.backends': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if LOG_SQL else 'WARNING',
+            'propagate': False,
+        },
         'apps': {'handlers': ['console'], 'level': 'DEBUG'},
     },
 }

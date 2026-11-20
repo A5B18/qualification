@@ -53,8 +53,22 @@ jobs:
       - name: Générer le schéma OpenAPI (doit rester sans erreur)
         run: python manage.py spectacular --file schema.yml --fail-on-warn --settings=config.settings.development
 
+      # Vérifie les réglages de production (HTTPS, cookies, en-têtes) sans
+      # déployer. La clé est fournie ici uniquement pour que la commande
+      # démarre : `config.settings.production` en exige désormais une.
+      - name: Contrôles de déploiement
+        env:
+          SECRET_KEY: ${{ secrets.CI_SECRET_KEY || 'ci-only-key-not-used-to-sign-anything-0123456789abcdef' }}
+          ALLOWED_HOSTS: example.org
+        run: python manage.py check --deploy --fail-level WARNING --settings=config.settings.production
+
       - name: Lancer les tests
-        run: python manage.py test --settings=config.settings.development
+        run: python manage.py test --settings=config.settings.test
+
+      - name: Mesurer la couverture
+        run: |
+          python -m coverage run manage.py test --settings=config.settings.test
+          python -m coverage report
 
   frontend:
     name: Frontend

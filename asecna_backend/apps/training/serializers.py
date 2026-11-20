@@ -1,5 +1,6 @@
 """Serializers pour training."""
 
+from django.utils import timezone
 from rest_framework import serializers
 from .models import (
     Specialty, Training, Course, Internship, QualificationMaintenance,
@@ -135,9 +136,8 @@ class QualificationMaintenanceSerializer(serializers.ModelSerializer):
 
     def get_is_overdue(self, obj) -> bool:
         """True si l'échéance est dépassée et le contrôle toujours en attente."""
-        import datetime
         return (
             obj.maintenance_status == QualificationMaintenance.MaintenanceStatus.PENDING
             and obj.due_date is not None
-            and obj.due_date < datetime.date.today()
+            and obj.due_date < timezone.localdate()
         )

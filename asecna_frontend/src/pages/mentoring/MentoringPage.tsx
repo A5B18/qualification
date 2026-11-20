@@ -12,11 +12,10 @@ import {
     type MentoringStatus, type MentoringRecord, type User,
 } from '../../types'
 import { apiErrorMessage } from '../../api/client'
+import { hasAnyRole } from '../../utils/roles'
 
-function canApprove(user: User | null): boolean {
-    const r: string[] = user?.roles ?? []
-    return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF') || r.includes('APPROVER')
-}
+/** Décision sur une fiche — backend : `IsApproverOrUnitChief`. */
+const canApprove = (user: User | null) => hasAnyRole(user, 'UNIT_CHIEF', 'APPROVER')
 
 function fmt(d: string | null | undefined) {
     return d ? new Date(d).toLocaleDateString('fr-FR') : '—'

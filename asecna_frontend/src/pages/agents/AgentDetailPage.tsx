@@ -16,6 +16,9 @@ import {
     type AgentStatus, type ProbationStatus, type MentoringStatus, type ReportStatus, type ReportType
 } from '../../types'
 import { useNow, daysUntil } from '../../utils/dates'
+import {
+    QualificationsPanel, QualificationAlertBadge,
+} from '../../components/ARCEPBookSections'
 import type {
     User as UserType, AgentProfile, AgentSkill, AgentCertification,
     PerformanceIndicator, ARCEPBook, ARCEPEntry,
@@ -493,20 +496,36 @@ function ARCEPBookDetail({ book }: { book: ARCEPBook }) {
 
     return (
         <div className="card space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
                     <span className={`badge ${book.is_active ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
                         {book.is_active ? '● Actif' : '○ Inactif'}
                     </span>
-                    <span className="ml-3 text-sm text-gray-500">
+                    <span className="text-sm text-gray-500">
                         Ouvert le {new Date(book.opened_at).toLocaleDateString('fr-FR')}
                     </span>
+                    {/* L'identite de l'agent est deja l'en-tete de cette fiche :
+                        on ne la repete pas, mais l'etat des echeances et des
+                        visas fait partie du carnet et doit se lire ici aussi. */}
+                    <QualificationAlertBadge summary={book.qualifications_summary} />
+                    {(book.pending_signature_count ?? 0) > 0 && (
+                        <span className="badge bg-accent-100 text-accent-700 text-xs">
+                            {book.pending_signature_count} entrée(s) sans visa
+                        </span>
+                    )}
                 </div>
                 <div className="text-right">
                     <p className="text-2xl font-bold text-info-700">{totalHours}h</p>
                     <p className="text-xs text-gray-400">total enregistré</p>
                 </div>
             </div>
+
+            {/* Qualifications et echeances du titulaire — meme tableau que
+                l'ecran « Carnets ARCEP ». */}
+            <QualificationsPanel
+                items={book.qualifications ?? []}
+                summary={book.qualifications_summary}
+            />
 
             {entries.length > 0 && (
                 <div>

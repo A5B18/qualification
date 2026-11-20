@@ -148,16 +148,55 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Nom court — pendant de get_full_name() dans le contrat Django."""
         return self.first_name or self.matricule
 
+    # -------------------------------------------------------------------------
+    # Rôles fonctionnels
+    #
+    # Les rôles actifs sont lus une seule fois par instance, puis mémorisés.
+    # Une requête traverse plusieurs contrôles de rôle (classe de permission,
+    # cloisonnement du queryset, règle métier dans la vue) : sans ce cache,
+    # chacun repartait en base, soit jusqu'à six requêtes identiques pour un
+    # seul appel d'API.
+    #
+    # C'est le mécanisme que Django applique déjà à `has_perm` (`_perm_cache`) :
+    # le cache vit le temps de l'instance, et une modification des rôles exige
+    # soit une nouvelle instance, soit un appel explicite à
+    # `invalidate_role_cache()`.
+    # -------------------------------------------------------------------------
+
+    def _active_roles(self) -> frozenset:
+        """
+        Ensemble des rôles actifs, chargé à la première demande.
+
+        Le filtrage se fait en Python, sur `user_roles.all()`, et non par un
+        `.filter(is_active=True)` en base : un `filter()` sur un gestionnaire
+        de relation ignore le `prefetch_related` de la vue et repart en base.
+        La liste des agents, qui précharge pourtant les rôles, déclenchait
+        ainsi une requête par ligne affichée.
+        """
+        if not hasattr(self, '_role_cache'):
+            self._role_cache = frozenset(
+                link.role for link in self.user_roles.all() if link.is_active
+            )
+        return self._role_cache
+
+    def invalidate_role_cache(self) -> None:
+        """À appeler après avoir attribué ou révoqué un rôle sur cette instance."""
+        self.__dict__.pop('_role_cache', None)
+
     def has_role(self, role: str) -> bool:
         """
         Vérifie si l'utilisateur possède un rôle fonctionnel actif.
         :param role: Valeur de FunctionalRole (ex: 'EVALUATOR')
         """
-        return self.user_roles.filter(role=role, is_active=True).exists()
+        return role in self._active_roles()
+
+    def has_any_role(self, *roles: str) -> bool:
+        """True si au moins un des rôles donnés est actif."""
+        return bool(self._active_roles().intersection(roles))
 
     def get_active_roles(self) -> List[str]:
         """Retourne la liste des rôles fonctionnels actifs de l'utilisateur."""
-        return list(self.user_roles.filter(is_active=True).values_list('role', flat=True))
+        return sorted(self._active_roles())
 
     def get_career_status(self) -> Optional[str]:
         """Retourne le statut de parcours depuis AgentProfile (ou None si pas de profil)."""

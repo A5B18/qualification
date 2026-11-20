@@ -11,7 +11,6 @@ Le raccordement des modules au registre est testé à part, dans
 `tests/test_workflow_ledger.py`.
 """
 
-import datetime
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.contrib.contenttypes.models import ContentType

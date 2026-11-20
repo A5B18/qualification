@@ -7,9 +7,12 @@ Signal principal :
     (règle métier : carnet ARCEP créé automatiquement à la qualification)
 """
 
+import logging
+
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
-from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save, sender='accounts.AgentProfile')
@@ -48,8 +51,6 @@ def on_agent_qualified(sender, instance, created, **kwargs):
         book, created_book = ARCEPBook.objects.get_or_create(agent=instance.user)
         if created_book:
             # Log de création pour traçabilité
-            import logging
-            logger = logging.getLogger('apps.accounts.signals')
             logger.info(
                 "ARCEPBook créé automatiquement pour %s suite au passage au statut QUALIFIED",
                 instance.user.matricule,

@@ -1,0 +1,37 @@
+# Contexte de build : ce qui ne doit JAMAIS entrer dans l'image.
+#
+# `COPY . .` embarquait tout le repertoire, soit le .env (secrets), la base
+# SQLite de developpement, l'environnement virtuel local (plusieurs centaines
+# de Mo, compile pour un autre systeme) et l'historique Git.
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Environnements virtuels et dependances locales
+venv/
+.venv/
+env/
+
+# Base de developpement, journaux, fichiers deposes
+db.sqlite3
+*.sqlite3
+logs/
+media/
+staticfiles/
+
+# Python
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Outillage
+.git/
+.github/
+.vscode/
+.idea/
+Makefile
+docker-compose.yml

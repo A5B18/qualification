@@ -1,5 +1,8 @@
 """Vues pour l'app probation — avec actions de finalisation et de score."""
 
+import datetime
+import logging
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,11 +10,15 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 
 from core.permissions import (
-    IsApproverOrUnitChief, IsEvaluator, IsEvaluatorOrInstructor,
-    IsEvaluatorOrUnitChiefOrApprover,
+    IsApproverOrUnitChief, IsEvaluator, IsEvaluatorOrUnitChiefOrApprover,
 )
 from .models import ProbationPeriod
 from .serializers import ProbationPeriodSerializer
+
+logger = logging.getLogger(__name__)
+
+#: Seuil metier ASECNA : l'evaluation de fin de periode est annoncee a J-14.
+ALERT_DAYS = 14
 
 
 class ProbationPeriodViewSet(viewsets.ModelViewSet):
@@ -38,8 +45,7 @@ class ProbationPeriodViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = ProbationPeriod.objects.select_related('agent', 'evaluated_by')
-        if (user.is_admin or user.has_role('UNIT_CHIEF')
-                or user.has_role('APPROVER') or user.has_role('EVALUATOR')):
+        if user.is_admin or user.has_any_role('UNIT_CHIEF', 'APPROVER', 'EVALUATOR'):
             qs = base.all()
         else:
             # Agent : uniquement ses propres périodes
@@ -130,24 +136,25 @@ class ProbationPeriodViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='evaluation-due')
     def evaluation_due(self, request):
         """
-        Retourne les périodes d'essai dont l'évaluation est due (à J-14 ou moins).
-        Réservé aux EVALUATEURS, CHEF_UNITE et ADMIN.
-        """
-        if not (request.user.is_admin
-                or request.user.has_role('EVALUATOR')
-                or request.user.has_role('UNIT_CHIEF')):
-            return Response({'error': {'code': 'forbidden', 'message': 'Accès refusé.'}},
-                            status=status.HTTP_403_FORBIDDEN)
+        Périodes d'essai dont l'évaluation est due (à J-14 ou moins).
 
-        import datetime
-        threshold = datetime.date.today() + datetime.timedelta(days=14)
+        L'habilitation est portée par `get_permissions`
+        (`IsEvaluatorOrUnitChiefOrApprover`). Le contrôle de rôle écrit ici en
+        plus excluait les APPROBATEURS que la classe de permission autorise :
+        ils franchissaient la permission pour recevoir un 403 du corps de la
+        vue. Deux règles pour une même porte, et elles ne disaient pas la même
+        chose.
+        """
+        threshold = timezone.localdate() + datetime.timedelta(days=ALERT_DAYS)
         due = ProbationPeriod.objects.filter(
             probation_status=ProbationPeriod.ProbationStatus.IN_PROGRESS,
             end_date__lte=threshold,
-        ).select_related('agent').order_by('end_date')
+        ).select_related('agent', 'evaluated_by').order_by('end_date')
 
-        serializer = ProbationPeriodSerializer(due, many=True)
-        return Response({'count': due.count(), 'results': serializer.data})
+        serializer = self.get_serializer(due, many=True)
+        # `len()` sur la liste deja serialisee : `due.count()` relancait une
+        # requete COUNT sur un queryset deja parcouru.
+        return Response({'count': len(serializer.data), 'results': serializer.data})
 
 
 def _update_agent_status_after_probation(agent, passed: bool, final: bool = False):
@@ -155,14 +162,27 @@ def _update_agent_status_after_probation(agent, passed: bool, final: bool = Fals
     Met à jour le statut du parcours agent après la fin de sa période d'essai.
     passed=True → statut MENTORED (début du mentorat)
     passed=False, final=True → statut RETIRED (non retenu)
+
+    Un agent sans profil de parcours n'a rien à mettre à jour : c'est le seul
+    cas toléré, et il est nommé. L'ancien `except Exception: pass` masquait
+    aussi les erreurs de base de données — une période pouvait passer à PASSED
+    sans que l'agent entre en mentorat, silencieusement.
     """
-    from apps.accounts.models import AgentStatus
+    from apps.accounts.models import AgentProfile, AgentStatus
+
+    if not passed and not final:
+        # Échec non définitif : l'agent garde son statut, une seconde
+        # tentative reste ouverte.
+        return
+
     try:
         profile = agent.agent_profile
-        if passed:
-            profile.status = AgentStatus.MENTORED
-        elif final:
-            profile.status = AgentStatus.RETIRED
-        profile.save(update_fields=['status'])
-    except Exception:
-        pass  # Si pas de profil, on ne bloque pas
+    except AgentProfile.DoesNotExist:
+        logger.info(
+            "Fin de période d'essai de l'agent %s : aucun profil de parcours "
+            "à mettre à jour.", agent.pk,
+        )
+        return
+
+    profile.status = AgentStatus.MENTORED if passed else AgentStatus.RETIRED
+    profile.save(update_fields=['status'])

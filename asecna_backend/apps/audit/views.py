@@ -10,7 +10,8 @@ from .serializers import AuditLogSerializer, LoginHistorySerializer
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """Lecture seule des logs d'audit — admin uniquement."""
-    queryset = AuditLog.objects.all().order_by('-timestamp')
+    # `select_related` : le serializer rend l'utilisateur de chaque ligne.
+    queryset = AuditLog.objects.select_related('user').order_by('-timestamp')
     serializer_class = AuditLogSerializer
     permission_classes = [IsAuthenticated, IsAdministrator]
 
@@ -28,6 +29,6 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 class LoginHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     """Lecture seule de l'historique de connexions — admin uniquement."""
-    queryset = LoginHistory.objects.all().order_by('-timestamp')
+    queryset = LoginHistory.objects.select_related('user').order_by('-timestamp')
     serializer_class = LoginHistorySerializer
     permission_classes = [IsAuthenticated, IsAdministrator]

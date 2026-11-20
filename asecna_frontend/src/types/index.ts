@@ -243,6 +243,99 @@ export interface Report {
     created_by_detail?: { id: number; full_name?: string; first_name?: string; last_name?: string } | null
 }
 
+/** Statuts d'une qualification, tels que le backend les calcule. */
+export type QualificationStatus =
+    | 'VALID' | 'EXPIRING' | 'EXPIRED'
+    | 'PENDING' | 'OVERDUE' | 'PASSED'
+    | 'FAILED' | 'WAIVED' | 'PERMANENT'
+
+export const QualificationStatusLabels: Record<QualificationStatus, string> = {
+    VALID: 'Valide',
+    EXPIRING: 'Échéance proche',
+    EXPIRED: 'Expirée',
+    PENDING: 'Contrôle à venir',
+    OVERDUE: 'Contrôle en retard',
+    PASSED: 'Contrôle réussi',
+    FAILED: 'Échec — agent suspendu',
+    WAIVED: "Dispense du chef d'unité",
+    PERMANENT: 'Sans échéance',
+}
+
+export const QualificationStatusColors: Record<QualificationStatus, string> = {
+    VALID: 'bg-success-100 text-success-700',
+    EXPIRING: 'bg-warning-100 text-warning-700',
+    EXPIRED: 'bg-danger-100 text-danger-700',
+    PENDING: 'bg-info-100 text-info-700',
+    OVERDUE: 'bg-danger-100 text-danger-700',
+    PASSED: 'bg-success-100 text-success-700',
+    FAILED: 'bg-danger-100 text-danger-700',
+    WAIVED: 'bg-gray-100 text-gray-600',
+    PERMANENT: 'bg-gray-100 text-gray-600',
+}
+
+/** Origine d'une qualification dans le carnet. */
+export type QualificationKind = 'CERTIFICATION' | 'MAINTENANCE' | 'INTERNSHIP'
+
+/** Une ligne du tableau « qualifications et échéances » du carnet ARCEP. */
+export interface ARCEPQualification {
+    kind: QualificationKind
+    kind_label: string
+    label: string
+    issuer: string
+    obtained_on: string | null
+    due_date: string | null
+    /** `due_date` est-elle une échéance encore à tenir ? */
+    tracks_due: boolean
+    status: QualificationStatus
+    status_label: string
+    days_remaining: number | null
+    score: string | null
+    note: string
+}
+
+export interface ARCEPQualificationsSummary {
+    total: number
+    valid: number
+    expiring_soon: number
+    expired: number
+    waived: number
+    next_due_date: string | null
+    next_due_label: string | null
+    next_due_in_days: number | null
+    alert_level: 'OK' | 'WARNING' | 'CRITICAL'
+    warning_window_days: number
+}
+
+/** En-tête du carnet : qui est le titulaire. */
+export interface ARCEPAgentIdentity {
+    id: number
+    matricule: string
+    last_name: string
+    first_name: string
+    full_name: string
+    email: string
+    phone: string
+    photo: string | null
+    /** Spécialité technique du profil agent — la profession exercée. */
+    profession: string | null
+    profession_code: string | null
+    roles: string[]
+    career_status: AgentStatus | null
+    career_status_label: string | null
+    unit: {
+        id: number
+        code: string
+        name: string
+        unit_type: string
+        unit_type_label: string
+        location: string
+        country: string
+    } | null
+    hire_date: string | null
+    qualification_date: string | null
+    seniority_years: number | null
+}
+
 export interface ARCEPBook {
     id: number
     agent: number
@@ -252,6 +345,17 @@ export interface ARCEPBook {
     entries?: ARCEPEntry[]
     /** Total d'heures du carnet, calcule par le serializer. */
     total_hours?: string | number
+    entries_count?: number
+    /** Première page du carnet : identité du titulaire. */
+    agent_identity?: ARCEPAgentIdentity | null
+    /** Qualifications et échéances, la plus urgente en tête. */
+    qualifications?: ARCEPQualification[]
+    qualifications_summary?: ARCEPQualificationsSummary
+    signatures_count?: number
+    /** Fin de la dernière période visée par le chef d'unité. */
+    last_signed_on?: string | null
+    /** Entrées qui attendent encore le visa du chef d'unité. */
+    pending_signature_count?: number
 }
 
 export interface ARCEPEntry {
@@ -312,7 +416,17 @@ export interface PaginatedResponse<T> {
 // ─── Evaluations ──────────────────────────────────────────────────────────────
 
 export type QuestionType = 'GENERAL' | 'TECHNICAL' | 'UNIT_SPECIFIC'
-export type QuestionKind = 'MCQ' | 'TF' | 'OPEN'
+
+/**
+ * Le QCM est le seul format d'évaluation (backend : migration 0003).
+ * Le Vrai/Faux n'était qu'un QCM à deux options, et une réponse libre ne se
+ * corrige pas de façon reproductible.
+ */
+export type QuestionKind = 'MCQ'
+
+/** Bornes du nombre de propositions, alignées sur `Question.MIN/MAX_OPTIONS`. */
+export const MCQ_MIN_OPTIONS = 2
+export const MCQ_MAX_OPTIONS = 6
 
 export const QuestionTypeLabels: Record<QuestionType, string> = {
     GENERAL: 'Généralités',
@@ -322,8 +436,6 @@ export const QuestionTypeLabels: Record<QuestionType, string> = {
 
 export const QuestionKindLabels: Record<QuestionKind, string> = {
     MCQ: 'QCM',
-    TF: 'Vrai / Faux',
-    OPEN: 'Réponse ouverte',
 }
 
 export interface Question {

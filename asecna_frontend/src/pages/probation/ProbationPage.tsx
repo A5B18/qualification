@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { apiErrorMessage } from '../../api/client'
 import { useNow, daysUntil, isWithinAlertWindow } from '../../utils/dates'
 import type { User, ProbationPeriod } from '../../types'
+import { hasAnyRole } from '../../utils/roles'
 
 const STATUS_LABELS: Record<string, string> = {
     IN_PROGRESS: 'En cours', PASSED: 'Réussie ✓', FAILED: 'Échouée',
@@ -20,14 +21,11 @@ const STATUS_COLORS: Record<string, string> = {
     FAILED: 'bg-danger-100 text-danger-700',
 }
 
-function canCreate(user: User | null) {
-    const r: string[] = user?.roles ?? []
-    return user?.is_superuser || r.includes('ADMIN') || r.includes('UNIT_CHIEF')
-}
-function canFinalize(user: User | null) {
-    const r: string[] = user?.roles ?? []
-    return user?.is_superuser || r.includes('ADMIN') || r.includes('EVALUATOR') || r.includes('UNIT_CHIEF')
-}
+/** Ouverture d'une période — backend : `IsApproverOrUnitChief`. */
+const canCreate = (user: User | null) => hasAnyRole(user, 'UNIT_CHIEF', 'APPROVER')
+
+/** Saisie du score final — backend : `IsEvaluator`. */
+const canFinalize = (user: User | null) => hasAnyRole(user, 'EVALUATOR', 'UNIT_CHIEF')
 
 export default function ProbationPage() {
     const { user } = useAuth()

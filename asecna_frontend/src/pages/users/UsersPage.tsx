@@ -23,10 +23,7 @@ import {
     AgentStatusLabels, AgentStatusColors,
     type AgentStatus, type User, type FunctionalRole,
 } from '../../types'
-
-function isAdmin(user: User | null): boolean {
-    return Boolean(user?.is_superuser || user?.is_admin || user?.roles?.includes('ADMIN'))
-}
+import { isAdmin } from '../../utils/roles'
 
 const EMPTY_FORM = {
     matricule: '', first_name: '', last_name: '',

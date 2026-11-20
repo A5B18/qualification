@@ -13,7 +13,14 @@ class ProbationPeriodSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ProbationPeriod
         fields = '__all__'
-        read_only_fields = ('id', 'created_at', 'updated_at', 'finalized_at')
+        # Le resultat d'une periode d'essai s'enregistre par l'action
+        # `finalize`, seule a appliquer le seuil de 70/100 et la transition de
+        # statut de l'agent (MENTORED ou RETIRED). Un PATCH direct sur
+        # `probation_status` contournait ces deux regles.
+        read_only_fields = (
+            'id', 'created_at', 'updated_at', 'finalized_at',
+            'probation_status', 'score', 'evaluated_by', 'actual_end_date',
+        )
 
     def get_agent_detail(self, obj) -> dict | None:
         if obj.agent:

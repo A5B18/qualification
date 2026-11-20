@@ -108,10 +108,15 @@ chaque exécution** de la commande : ces identifiants fonctionnent donc toujours
 
 ```powershell
 cd asecna_backend
-python manage.py test --settings=config.settings.development
+python manage.py test --settings=config.settings.test
 ```
 
-**Attendu : `Ran 204 tests ... OK`**
+**Attendu : `Ran 254 tests ... OK`** (environ 5 secondes)
+
+> Les tests tournent sur `config.settings.test` : base en mémoire, hachage de
+> mot de passe rapide, journal réduit aux erreurs. Les règles métier, les
+> validateurs et les permissions sont exactement ceux des autres
+> environnements.
 
 | Suite | Tests | Ce qu'elle couvre |
 |---|---|---|
@@ -148,8 +153,9 @@ npm test          # 29 tests (Vitest)
 Pour une suite en particulier :
 
 ```powershell
-python manage.py test tests.test_api_contract --settings=config.settings.development
-python manage.py test apps.probation --settings=config.settings.development
+python manage.py test tests.test_api_contract --settings=config.settings.test
+python manage.py test tests.test_securite --settings=config.settings.test
+python manage.py test apps.probation --settings=config.settings.test
 ```
 
 ### Vérifications complémentaires
@@ -287,13 +293,13 @@ C'est le rôle le plus riche : il porte le **workflow de correction en 4 étapes
 | G1 | Se connecter | Badge **👤 Agent**, menu de 7 entrées **au « Mon/Ma »** |
 | G2 | Tableau de bord | Carte « Mon parcours » avec le statut **Qualifié ✓** |
 | G3 | Menu **Mon carnet ARCEP** | **Son seul** carnet, avec son total d'heures |
-| G4 | Déplier le carnet | 3 entrées signées, 2 non signées |
+| G4 | Déplier le carnet | Sa fiche : nom, prénom, matricule, profession, unité, statut, dates clés — puis ses qualifications avec leurs échéances, puis 3 entrées visées et 2 en attente de visa |
 | G5 | **Ajouter une entrée** | Activité + durée ; elle apparaît comme non signée |
 | G6 | Menu **Ma probation** | Uniquement ses propres périodes |
 | G7 | Menu **Mes évaluations** | Uniquement ses sessions |
 | G8 | Menu **Formations**, onglet **Cours** | Uniquement les cours **publiés** |
 | G9 | Sur un examen **publié**, cliquer **Passer l'épreuve** | L'écran de composition s'ouvre : les énoncés, **sans la bonne réponse** |
-| G10 | Répondre puis **Enregistrer cette réponse** | La réponse est conservée côté serveur ; la pastille « enregistrée » apparaît |
+| G10 | Répondre puis **Enregistrer cette réponse** | Chaque question est un **QCM** : on coche une option, il n'y a plus de champ libre. La réponse est conservée côté serveur ; la pastille « enregistrée » apparaît |
 | G11 | Recharger la page | Les réponses déjà enregistrées sont **toujours là** (le brouillon vit sur le serveur) |
 | G12 | **Rendre ma copie** | Un avertissement signale les questions laissées vides (notées 0) ; après confirmation, statut → `SUBMITTED` |
 | G13 | Rouvrir l'épreuve | « Votre copie a déjà été rendue » — elle n'est plus modifiable |
@@ -337,6 +343,12 @@ Ce sont les règles que le jury est le plus susceptible de questionner.
 | Score borné au barème | Saisir 999 sur une question à 10 points | Refusé **côté interface**, avant même l'appel serveur |
 | Le corrigé ne fuit pas | Composer une épreuve en tant qu'agent | Les énoncés ne portent pas `correct_answer` |
 | Un examen vide n'est pas publiable | Créer un examen puis tenter de le publier sans question | Le bouton **Publier** reste inactif ; par l'API, 400 explicite |
+| **QCM uniquement** | Ouvrir **Nouvelle question** sur un examen | Aucun choix de format : « QCM » est annoncé, la bonne réponse se coche parmi les options |
+| Au moins deux options | Ne remplir qu'une seule option | « Un QCM doit proposer au moins 2 options » ; le bouton **Créer** reste inactif |
+| Pas de doublon d'option | Saisir « Vrai » et « vrai » | « Deux options sont identiques » |
+| La bonne réponse est une option | Cocher une ligne restée vide | « Cochez laquelle des options est la bonne réponse » ; par l'API, 400 sur `correct_answer` |
+| L'agent ne répond que par une option | `POST .../submit-answer/` avec un texte libre | **400**, la réponse liste les options acceptées |
+| Correction assistée | Écran de correction d'une copie | La comparaison QCM est affichée ; **Appliquer** remplit note et appréciation, l'évaluateur enregistre |
 
 ### 5.3 Carnet ARCEP
 
@@ -345,7 +357,12 @@ Ce sont les règles que le jury est le plus susceptible de questionner.
 | Création automatique | Passer un agent en `QUALIFIED` depuis l'admin Django | Son carnet est créé par signal |
 | Un seul carnet par agent | Tenter d'en créer un second | Refusé (relation un-à-un) |
 | Signature par le chef d'unité | Essayer de signer en tant qu'agent | Refusé (403) |
-| Validité = couverture par une signature | Comparer entrées anciennes et récentes | Anciennes « signées », récentes « non signées » |
+| Validité = couverture par une signature | Comparer entrées anciennes et récentes | Anciennes « visées », récentes « en attente de visa » |
+| **Le carnet identifie son titulaire** | Déplier un carnet | Nom, prénom, matricule, **profession**, unité, statut de parcours, dates de recrutement et de qualification, ancienneté, coordonnées, rôles |
+| **Qualifications et échéances** | Déplier un carnet | Tableau des certifications, contrôles biennaux et stages qualifiants, échéance la plus urgente en tête, avec jours restants ou jours de retard |
+| Alerte d'échéance à 90 jours | Carnet de `ASE-2024-0105` (contrôle en retard) | Pastille rouge sur la ligne repliée, sans avoir à ouvrir le carnet |
+| Entrées en attente de visa | Ajouter une entrée après la dernière période signée | Le compteur « sans visa » du carnet augmente, et l'indicateur en haut de page aussi |
+| Même lecture depuis la fiche agent | Onglet **Carnet ARCEP** d'un agent | Les mêmes qualifications et échéances que l'écran Carnets ARCEP |
 
 ### 5.4 Maintien de qualification
 
@@ -430,6 +447,10 @@ Ouvrir http://127.0.0.1:8000/api/docs/
 | W12 | `GET /api/v1/evaluations/sessions/{id}/answers/` | La copie : réponses, barèmes, corrections, questions sans réponse |
 | W13 | `GET /api/v1/evaluations/exams/{id}/questions/` en tant qu'agent | Les énoncés **sans** `correct_answer` |
 | W14 | `POST /api/v1/evaluations/exams/{id}/publish/` sur un examen sans question | **400** « Un examen sans question ne peut pas etre publie » |
+| W14b | `POST /api/v1/evaluations/questions/` avec `options: []` | **400** sur `options` : « Un QCM doit proposer au moins 2 options » |
+| W14c | Même appel avec `correct_answer` hors des options | **400** sur `correct_answer` |
+| W14d | `POST /api/v1/evaluations/sessions/{id}/submit-answer/` avec un texte libre | **400**, et la réponse liste les options acceptées |
+| W14e | `GET /api/v1/arcep/books/` | Chaque carnet porte `agent_identity`, `qualifications`, `qualifications_summary` et `pending_signature_count` |
 | W15 | `GET /api/v1/agents/skills/?agent=<id>` | Uniquement les compétences de cet agent |
 | W16 | `GET /api/v1/training/courses/?is_published=false` en tant qu'instructeur | Uniquement ses brouillons |
 | W17 | `POST /api/v1/auth/users/{id}/reset-password/` | `delivered_by_email` indique si le courriel est parti ; `temp_password` n'apparaît **que** s'il n'a pas pu partir |
@@ -461,8 +482,8 @@ PAR ROLE
 
 REGLES METIER
 [ ] 5.1 Periode d'essai (5 regles)
-[ ] 5.2 Evaluations (7 regles)
-[ ] 5.3 Carnet ARCEP (4 regles)
+[ ] 5.2 Evaluations (13 regles, dont QCM uniquement)
+[ ] 5.3 Carnet ARCEP (9 regles, dont identite et echeances)
 [ ] 5.4 Maintien de qualification (4 regles)
 [ ] 5.5 Registre d'approbation (6 regles)
 [ ] 5.6 Qualification initiale

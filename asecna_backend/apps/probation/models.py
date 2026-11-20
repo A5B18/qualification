@@ -208,7 +208,7 @@ class ProbationPeriod(models.Model):
         """
         return (
             self.probation_status == self.ProbationStatus.IN_PROGRESS
-            and datetime.date.today() >= self.evaluation_due_date
+            and timezone.localdate() >= self.evaluation_due_date
         )
 
     @property
@@ -217,7 +217,7 @@ class ProbationPeriod(models.Model):
         Nombre de jours restants avant le déclenchement de l'évaluation.
         Négatif si l'évaluation est en retard.
         """
-        return (self.evaluation_due_date - datetime.date.today()).days
+        return (self.evaluation_due_date - timezone.localdate()).days
 
     def __str__(self) -> str:
         score_str = f" — {self.score}/100" if self.score is not None else ""

@@ -1,6 +1,8 @@
 """Serializers pour evaluations."""
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
+
 from .models import Question, Exam, ExamSession, Answer
 
 
@@ -16,6 +18,44 @@ class QuestionSerializer(serializers.ModelSerializer):
         if obj.created_by:
             return f"{obj.created_by.first_name} {obj.created_by.last_name}"
         return None
+
+    def validate(self, attrs):
+        """
+        Fait respecter les regles du QCM — le seul format accepte.
+
+        L'ecran de composition propose quatre champs d'option dont deux
+        restent souvent vides : on les ecarte ici plutot que de refuser la
+        saisie. La bonne reponse est ensuite realignee sur l'orthographe
+        exacte de l'option retenue, pour que la correction et la preselection
+        du bouton radio portent sur la meme chaine.
+        """
+        current = self.instance
+
+        def value_of(field, default):
+            if field in attrs:
+                return attrs[field]
+            return getattr(current, field, default) if current else default
+
+        kind    = value_of('question_kind', Question.QuestionKind.MCQ)
+        options = Question.normalize_options(value_of('options', []))
+        correct = (value_of('correct_answer', '') or '').strip()
+
+        probe = Question(question_kind=kind, options=options, correct_answer=correct)
+        try:
+            probe.clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        # Orthographe canonique : celle de l'option, pas celle de la frappe.
+        match = next(
+            (opt for opt in options if opt.casefold() == correct.casefold()),
+            correct,
+        )
+
+        attrs['options'] = options
+        attrs['correct_answer'] = match
+        attrs['question_kind'] = Question.QuestionKind.MCQ
+        return attrs
 
 
 class ExamSerializer(serializers.ModelSerializer):
@@ -107,11 +147,21 @@ class AnswerSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'answered_at', 'corrected_at')
 
     def get_question_detail(self, obj) -> dict | None:
+        """
+        Enonce joint a la reponse.
+
+        Les options du QCM en font partie : elles ne sont pas le corrige, et
+        sans elles un agent qui relit sa copie ne voit que sa propre reponse,
+        sans les choix qui lui etaient proposes. `correct_answer` reste
+        ajoutee par la vue, pour les seuls profils habilites a corriger.
+        """
         if obj.question:
             return {
                 'id': obj.question.id,
                 'text': obj.question.text,
                 'question_type': obj.question.question_type,
+                'question_kind': obj.question.question_kind,
+                'options': obj.question.clean_options,
                 'points': obj.question.points,
             }
         return None
@@ -137,10 +187,18 @@ class QuestionPublicSerializer(serializers.ModelSerializer):
     a quiconque listait les questions, y compris l'agent en train de composer.
     """
 
+    # Les options sont renormalisees a la lecture : une question creee avant
+    # la generalisation du QCM peut porter des entrees vides, et l'ecran de
+    # composition afficherait alors un bouton radio sans libelle.
+    options = serializers.SerializerMethodField()
+
     class Meta:
         model = Question
         fields = ('id', 'text', 'question_type', 'question_kind',
                   'difficulty', 'options', 'points')
+
+    def get_options(self, obj) -> list:
+        return obj.clean_options
 
 
 class AnswerGradeSerializer(serializers.Serializer):

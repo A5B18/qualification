@@ -17,13 +17,15 @@ import datetime
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import AgentProfile, AgentStatus, FunctionalRole, UserRole
+from django.apps import apps as django_apps
+
 from apps.agents.models import AgentCertification, AgentSkill, PerformanceIndicator
+from apps.workflows import services as workflows
 from apps.arcep.models import ARCEPBook, ARCEPEntry, ARCEPSignature
 from apps.evaluations.models import Answer, Exam, ExamSession, Question
 from apps.mentoring.models import MentoringRecord
@@ -548,20 +550,26 @@ class Command(BaseCommand):
              "Quelle est la bande de fréquence d'un VOR ?",
              "108 - 117,975 MHz",
              ["108 - 117,975 MHz", "329 - 335 MHz", "960 - 1215 MHz", "2700 - 2900 MHz"], 10),
-            (Question.QuestionType.TECHNICAL, Question.QuestionKind.TF, 2,
+            (Question.QuestionType.TECHNICAL, Question.QuestionKind.MCQ, 2,
              "Un ILS comprend un localizer et un glide path.", "Vrai",
              ["Vrai", "Faux"], 10),
-            (Question.QuestionType.UNIT_SPECIFIC, Question.QuestionKind.OPEN, 4,
-             "Décrivez la procédure de bascule sur l'alimentation de secours.",
-             "Vérification du groupe, bascule onduleur, contrôle des départs, consignation.",
-             [], 10),
-            (Question.QuestionType.GENERAL, Question.QuestionKind.TF, 1,
+            (Question.QuestionType.UNIT_SPECIFIC, Question.QuestionKind.MCQ, 4,
+             "Quel est le premier geste d'une bascule sur l'alimentation de secours ?",
+             "Vérifier le groupe électrogène avant la bascule",
+             ["Vérifier le groupe électrogène avant la bascule",
+              "Couper les départs puis relancer au hasard",
+              "Basculer l'onduleur sans consignation",
+              "Attendre le retour du réseau sans intervenir"], 10),
+            (Question.QuestionType.GENERAL, Question.QuestionKind.MCQ, 1,
              "Le carnet ARCEP doit être visé par le chef d'unité.", "Vrai",
              ["Vrai", "Faux"], 10),
-            (Question.QuestionType.TECHNICAL, Question.QuestionKind.OPEN, 5,
-             "Expliquez le rôle du radar secondaire (SSR) dans la surveillance.",
-             "Interrogation des transpondeurs, identification et altitude des aéronefs.",
-             [], 10),
+            (Question.QuestionType.TECHNICAL, Question.QuestionKind.MCQ, 5,
+             "Que fournit le radar secondaire (SSR) que le radar primaire ne donne pas ?",
+             "L'identification et l'altitude transmises par le transpondeur",
+             ["L'identification et l'altitude transmises par le transpondeur",
+              "La distance de l'aéronef uniquement",
+              "La vitesse au sol mesurée par effet Doppler",
+              "La météo sur la trajectoire"], 10),
         ]
         for qtype, kind, diff, text, answer, options, points in catalogue:
             q, created = Question.objects.get_or_create(
@@ -573,7 +581,7 @@ class Command(BaseCommand):
                           'created_by': p['evaluateur']},
             )
             questions.append(q)
-        self.ok(f'{len(questions)} questions (3 types, 3 formats, difficultés 1 à 5)')
+        self.ok(f'{len(questions)} questions QCM (3 types, difficultés 1 à 5)')
 
         exams = {}
         for key, title, status in (
@@ -627,28 +635,40 @@ class Command(BaseCommand):
             if status == ExamSession.SessionStatus.REJECTED:
                 session.approved_by = p['chef_cns']
                 session.rejection_reason = (
-                    "Barème non respecté sur la question ouverte : à recorriger."
+                    "Barème non respecté sur la question 3 du QCM : à recorriger."
                 )
             session.save()
 
-            # Réponses de l'agent, dont `n_corrected` déjà corrigées
+            # Réponses de l'agent, dont `n_corrected` déjà corrigées.
+            # Un QCM n'admet pas de réponse hors des options : une réponse
+            # fausse est donc une autre option, pas un texte libre.
             if status != ExamSession.SessionStatus.IN_PROGRESS:
                 for idx, q in enumerate(exam_questions):
                     ans, _ = Answer.objects.get_or_create(
                         session=session, question=q,
-                        defaults={'response': q.correct_answer if idx % 3 else 'Réponse partielle.'},
+                        defaults={'response': q.correct_answer if idx % 3
+                                  else self._wrong_option(q)},
                     )
                     if idx < n_corrected:
-                        points = Decimal('10.00') if idx % 3 else Decimal('6.00')
+                        points = Decimal('10.00') if idx % 3 else Decimal('0.00')
                         ans.evaluator_score = points
                         ans.is_correct = points >= Decimal('7.00')
                         ans.feedback = ('Réponse conforme.' if points >= 7
-                                        else 'Réponse incomplète, points partiels.')
+                                        else 'Option erronée : aucun point.')
                         ans.corrected_by = p['evaluateur']
                         ans.corrected_at = timezone.now()
                         ans.save()
             self.ok(f'Session {agent.matricule} [{status}]'
                     + (f' score {score}' if score else ''))
+
+    @staticmethod
+    def _wrong_option(question):
+        """Une option du QCM qui n'est pas la bonne réponse."""
+        options = question.clean_options
+        for opt in options:
+            if opt.casefold() != (question.correct_answer or '').strip().casefold():
+                return opt
+        return options[0] if options else ''
 
     def seed_maintenance(self, trainings, p):
         data = [
@@ -718,9 +738,6 @@ class Command(BaseCommand):
         alimentent le registre (`apps.workflows.services`), le jeu de démonstration
         se contente de rejouer leurs transitions — ce que ferait l'application.
         """
-        from apps.evaluations.models import ExamSession
-        from apps.workflows import services as workflows
-
         compte = 0
 
         # ── Rapports : décidés par l'approbateur ─────────────────────────────
@@ -829,7 +846,6 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------ rapport
 
     def print_summary(self):
-        from django.apps import apps
 
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('=> Inventaire final'))
@@ -838,7 +854,7 @@ class Command(BaseCommand):
             'evaluations', 'workflows', 'arcep', 'reports',
         }
         vides = []
-        for model in sorted(apps.get_models(),
+        for model in sorted(django_apps.get_models(),
                             key=lambda m: (m._meta.app_label, m.__name__)):
             if model._meta.app_label not in apps_metier:
                 continue

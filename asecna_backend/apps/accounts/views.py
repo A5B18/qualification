@@ -15,19 +15,28 @@ Endpoints :
   POST   /api/v1/auth/users/{id}/reset-password/ → Reset mot de passe (admin)
 """
 
+import logging
+import secrets
+import string
+
+from django.conf import settings as django_settings
+from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import get_user_model
-from django.utils import timezone
-import secrets
-import string
 
+from apps.audit.models import LoginHistory
+from core.mixins import SoftDeleteMixin
 from core.permissions import IsAdministrator
-from .models import UserRole, FunctionalRole
+from core.throttling import LoginRateThrottle, PasswordChangeRateThrottle
+from .models import UserRole
 from .serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer,
@@ -39,6 +48,8 @@ from .serializers import (
 )
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -55,6 +66,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
+    # Sans quota, un matricule connu pouvait etre attaque par force brute :
+    # l'historique tracait les echecs sans jamais les freiner.
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request, *args, **kwargs):
         matricule = str(request.data.get('matricule', ''))[:20]
@@ -73,8 +87,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     def _record_login(request, matricule, success: bool):
         """Trace la tentative de connexion sans jamais faire echouer le login."""
         try:
-            from apps.audit.models import LoginHistory
-
             user = User.objects.filter(matricule=matricule).first() if success else None
             forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
             ip = (forwarded.split(',')[0].strip() if forwarded
@@ -89,8 +101,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
             )
         except Exception:
-            import logging
-            logging.getLogger(__name__).warning(
+            # Une trace d'audit manquante ne doit jamais empecher une
+            # authentification valide : on journalise et on continue.
+            logger.warning(
                 "Impossible d'enregistrer la tentative de connexion.", exc_info=True,
             )
 
@@ -115,7 +128,10 @@ class LogoutView(generics.GenericAPIView):
         try:
             token = RefreshToken(serializer.validated_data['refresh'])
             token.blacklist()
-        except Exception:
+        except TokenError:
+            # `except Exception` masquait aussi les pannes de base : on ne
+            # rattrape plus que le jeton invalide ou expire, ce que simplejwt
+            # signale par TokenError.
             return Response(
                 {'error': {'code': 'bad_request', 'message': 'Token invalide ou expiré.'}},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -136,6 +152,8 @@ class ChangePasswordView(generics.GenericAPIView):
     """Changement de mot de passe par l'utilisateur lui-même."""
     serializer_class = ChangePasswordSerializer
     permission_classes = [IsAuthenticated]
+    # Borne les essais sur `old_password` depuis un jeton derobe.
+    throttle_classes = [PasswordChangeRateThrottle]
 
     def put(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -152,7 +170,7 @@ class ChangePasswordView(generics.GenericAPIView):
 # Gestion des utilisateurs (admin)
 # =============================================================================
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     """
     CRUD des utilisateurs.
 
@@ -184,7 +202,10 @@ class UserViewSet(viewsets.ModelViewSet):
             'agent_profile', 'agent_profile__unit', 'agent_profile__specialty',
         ).prefetch_related('user_roles')
 
-        if user.is_admin or any(user.has_role(r) for r in self.DIRECTORY_ROLES):
+        # `has_any_role` : une seule requete pour les cinq roles, et les
+        # controles suivants de la meme requete HTTP lisent le cache
+        # d'instance (cf. `User._active_roles`).
+        if user.is_admin or user.has_any_role(*self.DIRECTORY_ROLES):
             qs = base.all()
         else:
             # Agent simple : il ne consulte que sa propre fiche
@@ -207,7 +228,6 @@ class UserViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_active=False)
         search = self.request.query_params.get('search')
         if search:
-            from django.db.models import Q
             qs = qs.filter(
                 Q(matricule__icontains=search)
                 | Q(first_name__icontains=search)
@@ -220,13 +240,6 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return UserCreateSerializer
         return UserSerializer
-
-    def destroy(self, request, *args, **kwargs):
-        """Soft delete : is_active=False au lieu de supprimer physiquement."""
-        instance = self.get_object()
-        instance.is_active = False
-        instance.save(update_fields=['is_active'])
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='assign-role')
     def assign_role(self, request, pk=None):
@@ -251,6 +264,9 @@ class UserViewSet(viewsets.ModelViewSet):
             assigned_by=request.user,
             notes=notes,
         )
+        # Les roles de cette instance sont memorises : sans invalidation, un
+        # controle ulterieur dans la meme requete verrait l'etat d'avant.
+        user.invalidate_role_cache()
         return Response(
             {'message': f"Rôle {role} attribué à {user.matricule}."},
             status=status.HTTP_201_CREATED,
@@ -276,6 +292,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 {'error': {'code': 'not_found', 'message': f"Rôle {role} non trouvé ou déjà révoqué."}},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        user.invalidate_role_cache()
         return Response({'message': f"Rôle {role} révoqué pour {user.matricule}."})
 
     @action(detail=True, methods=['post'], url_path='reset-password')
@@ -325,15 +342,12 @@ class UserViewSet(viewsets.ModelViewSet):
         if not user.email:
             return False
         try:
-            from django.conf import settings as dj_settings
-            from django.core.mail import send_mail
-
             # Les backends `console` et `dummy` n'acheminent rien : ils
             # impriment ou jettent le message. Les considerer comme remis
             # ferait perdre le mot de passe en developpement, ou personne ne
             # lit la sortie standard du serveur. L'administrateur garde donc
             # le repli dans ces deux cas seulement.
-            backend = getattr(dj_settings, 'EMAIL_BACKEND', '')
+            backend = getattr(django_settings, 'EMAIL_BACKEND', '')
             if 'console' in backend or 'dummy' in backend:
                 return False
 
@@ -346,14 +360,15 @@ class UserViewSet(viewsets.ModelViewSet):
                     + f"Connectez-vous avec votre matricule {user.matricule} puis "
                     + "changez-le immédiatement depuis « Mon profil »." + '\n'
                 ),
-                from_email=getattr(dj_settings, "DEFAULT_FROM_EMAIL", None),
+                from_email=getattr(django_settings, "DEFAULT_FROM_EMAIL", None),
                 recipient_list=[user.email],
                 fail_silently=False,
             )
             return True
         except Exception:
-            import logging
-            logging.getLogger(__name__).warning(
+            # Un SMTP injoignable ne doit pas annuler la reinitialisation,
+            # deja ecrite en base : on bascule sur le repli manuel.
+            logger.warning(
                 "Envoi du mot de passe temporaire impossible pour %s.",
                 user.matricule, exc_info=True,
             )

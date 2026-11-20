@@ -8,6 +8,7 @@ import {
 import { useState } from 'react'
 import { apiErrorMessage } from '../../api/client'
 import type { User, Internship, Training, Course, Specialty } from '../../types'
+import { hasAnyRole, hasRole } from '../../utils/roles'
 
 const TYPE_LABELS: Record<string, string> = {
     QUALIFYING: 'Qualification', CONTINUING: 'Formation continue',
@@ -18,20 +19,14 @@ const TYPE_COLORS: Record<string, string> = {
     REFRESHER: 'bg-warning-100 text-warning-700', INITIAL: 'bg-accent-100 text-accent-700',
 }
 
-function canCreate(user: User | null) {
-    const r: string[] = user?.roles ?? []
-    return user?.is_superuser || r.includes('ADMIN') || r.includes('INSTRUCTOR') || r.includes('UNIT_CHIEF')
-}
+const canCreate = (user: User | null) => hasAnyRole(user, 'INSTRUCTOR', 'UNIT_CHIEF')
 
 /**
  * Seul un INSTRUCTEUR (ou un admin) dépose et publie un cours : c'est la
  * règle de `CourseViewSet.get_permissions` côté serveur. Un chef d'unité
  * recevrait un 403.
  */
-function canManageCourses(user: User | null) {
-    const r: string[] = user?.roles ?? []
-    return Boolean(user?.is_superuser || user?.is_admin || r.includes('ADMIN') || r.includes('INSTRUCTOR'))
-}
+const canManageCourses = (user: User | null) => hasRole(user, 'INSTRUCTOR')
 
 export default function TrainingPage() {
     const { user } = useAuth()

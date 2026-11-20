@@ -106,8 +106,11 @@ class ApiContractTestCase(TestCase):
             agent=cls.agent, training=cls.training,
             due_date=today - datetime.timedelta(days=5),
         )
+        # Toute question est un QCM : la bonne reponse figure parmi les
+        # options, et `submit-answer` n'accepte que l'une d'elles.
         cls.question = Question.objects.create(
             question_type='TECHNICAL', text='Question ?', correct_answer='A',
+            options=['A', 'B', 'C', 'D'],
             points=10, created_by=cls.evaluator,
         )
         cls.exam = Exam.objects.create(

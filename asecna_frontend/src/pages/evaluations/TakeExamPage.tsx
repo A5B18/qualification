@@ -20,7 +20,6 @@ import {
 import { evaluationsApi } from '../../api'
 import { apiErrorMessage } from '../../api/client'
 import {
-    QuestionKindLabels,
     type Question, type ExamSession, type SessionAnswers, type Exam,
 } from '../../types'
 
@@ -230,9 +229,6 @@ export default function TakeExamPage() {
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-xs font-semibold text-gray-400">Question {i + 1}</span>
-                                        <span className="badge bg-gray-100 text-gray-600">
-                                            {QuestionKindLabels[q.question_kind] ?? q.question_kind}
-                                        </span>
                                         <span className="badge bg-asecna-50 text-asecna-700">
                                             {q.points} pt{q.points > 1 ? 's' : ''}
                                         </span>
@@ -246,9 +242,10 @@ export default function TakeExamPage() {
                                 )}
                             </div>
 
-                            {/* QCM et Vrai/Faux proposent des choix ; la réponse ouverte
-                                reste un champ libre, corrigé à la main par l'évaluateur. */}
-                            {q.question_kind === 'MCQ' && q.options?.length > 0 ? (
+                            {/* Toutes les questions sont des QCM : on choisit une
+                                option, jamais un texte libre. Le serveur refuse
+                                d'ailleurs toute réponse absente des propositions. */}
+                            {q.options?.length > 0 ? (
                                 <div className="space-y-2">
                                     {q.options.map((opt, oi) => (
                                         <label key={oi} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -263,29 +260,15 @@ export default function TakeExamPage() {
                                         </label>
                                     ))}
                                 </div>
-                            ) : q.question_kind === 'TF' ? (
-                                <div className="flex gap-4">
-                                    {['Vrai', 'Faux'].map(opt => (
-                                        <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name={`q-${q.id}`}
-                                                checked={current === opt}
-                                                onChange={() => setDraft(d => ({ ...d, [q.id]: opt }))}
-                                                className="accent-asecna-600"
-                                            />
-                                            <span>{opt}</span>
-                                        </label>
-                                    ))}
-                                </div>
                             ) : (
-                                <textarea
-                                    value={current}
-                                    onChange={(e) => setDraft(d => ({ ...d, [q.id]: e.target.value }))}
-                                    rows={3}
-                                    placeholder="Votre réponse…"
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-asecna-500"
-                                />
+                                /* Une question sans option ne peut pas être
+                                   composée : le dire, plutôt que d'afficher un
+                                   champ dont la réponse serait refusée. */
+                                <p className="text-sm text-warning-700 flex items-center gap-1.5">
+                                    <AlertTriangle size={13} />
+                                    Cette question ne propose aucune option — signalez-la à
+                                    l'évaluateur, elle ne peut pas être traitée.
+                                </p>
                             )}
 
                             <button

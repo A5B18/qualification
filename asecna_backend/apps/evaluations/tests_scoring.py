@@ -1,6 +1,5 @@
 """Verifie le calcul du score d'une session d'examen (questions non repondues)."""
 
-import datetime
 from decimal import Decimal
 
 from django.test import TestCase

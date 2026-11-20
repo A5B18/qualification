@@ -18,7 +18,7 @@ from django.core import mail
 from django.test import override_settings
 
 from apps.agents.models import AgentSkill, AgentCertification, PerformanceIndicator
-from apps.evaluations.models import Question, Exam, ExamSession, Answer
+from apps.evaluations.models import Question, Exam, Answer
 from apps.training.models import Course
 
 from .test_api_contract import ApiContractTestCase, make_user

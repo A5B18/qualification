@@ -37,9 +37,13 @@ class ApprovalWorkflowSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ApprovalWorkflow
         fields = '__all__'
+        # Le registre consigne des decisions : son statut suit les actions
+        # `submit` / `approve` / `reject`, jamais une ecriture directe.
         read_only_fields = (
             'id', 'created_at', 'updated_at',
             'submitted_at', 'approved_at', 'rejected_at',
+            'workflow_status', 'submitted_by', 'approver',
+            'approver_comment', 'unit_chief_comment',
             'submitted_by_name', 'approver_name', 'unit_chief_name',
             'content_type_label', 'module', 'module_label', 'target',
         )

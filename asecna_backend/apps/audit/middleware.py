@@ -6,6 +6,10 @@ Inséré dans MIDDLEWARE après AuthenticationMiddleware (voir settings/base.py)
 import json
 import logging
 
+from django.http.request import RawPostDataException
+
+from .models import AuditLog
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,6 +22,19 @@ class AuditMiddleware:
 
     WRITE_METHODS   = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
     EXCLUDED_PATHS  = ('/api/schema/', '/api/docs/', '/static/', '/media/', '/admin/')
+
+    #: Champs retires du corps avant enregistrement.
+    #
+    # Seuls les mots de passe etaient masques. Le corps de
+    # `POST /auth/logout/` contient un refresh token, celui de
+    # `/auth/token/refresh/` aussi : la table d'audit conservait donc des
+    # jetons utilisables, lisibles par tout administrateur et exportables.
+    # Un journal d'audit ne doit jamais contenir de quoi se reconnecter.
+    SENSITIVE_FIELDS = frozenset({
+        'password', 'old_password', 'new_password', 'temp_password',
+        'refresh', 'access', 'token',
+    })
+    REDACTED = '[masqué]'
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -42,20 +59,7 @@ class AuditMiddleware:
     def _log_action(self, request, response):
         """Crée un AuditLog en base. Silencieux en cas d'erreur."""
         try:
-            from .models import AuditLog
-
-            # Extraire le corps de la requête (limiter la taille)
-            request_data = None
-            if request.content_type and 'application/json' in request.content_type:
-                try:
-                    request_data = json.loads(request.body)
-                    # Ne jamais logguer les mots de passe
-                    if isinstance(request_data, dict):
-                        request_data.pop('password', None)
-                        request_data.pop('old_password', None)
-                        request_data.pop('new_password', None)
-                except (json.JSONDecodeError, Exception):
-                    request_data = None
+            request_data = self._safe_body(request)
 
             AuditLog.objects.create(
                 user=request.user,
@@ -69,6 +73,27 @@ class AuditMiddleware:
         except Exception:
             # Ne jamais bloquer une requête pour un log raté
             logger.warning("AuditMiddleware: impossible de créer le log.", exc_info=True)
+
+    @classmethod
+    def _safe_body(cls, request):
+        """
+        Corps JSON de la requête, secrets masqués.
+
+        Renvoie None si le corps n'est pas du JSON exploitable : un corps
+        illisible ne doit pas empêcher l'enregistrement de l'action elle-même.
+        """
+        if 'application/json' not in (request.content_type or ''):
+            return None
+        try:
+            body = json.loads(request.body)
+        except (ValueError, UnicodeDecodeError, RawPostDataException):
+            return None
+        if not isinstance(body, dict):
+            return body
+        return {
+            key: (cls.REDACTED if key.lower() in cls.SENSITIVE_FIELDS else value)
+            for key, value in body.items()
+        }
 
     @staticmethod
     def _get_ip(request) -> str:

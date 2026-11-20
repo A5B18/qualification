@@ -18,11 +18,8 @@ import {
 
 import { auditApi } from '../../api'
 import { useAuth } from '../../store/authContextValue'
-import type { AuditLog, LoginHistory, User } from '../../types'
-
-function isAdmin(user: User | null): boolean {
-    return Boolean(user?.is_superuser || user?.is_admin || user?.roles?.includes('ADMIN'))
-}
+import type { AuditLog, LoginHistory } from '../../types'
+import { isAdmin } from '../../utils/roles'
 
 /** Couleur par méthode HTTP, pour repérer les suppressions d'un coup d'œil. */
 const METHOD_COLORS: Record<string, string> = {

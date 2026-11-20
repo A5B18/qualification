@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { authApi } from '../api'
-import type { User } from '../types'
+import { detectRole } from '../utils/roles'
 
 // ─── Définition des menus par rôle ──────────────────────────────────────────
 
@@ -87,17 +87,6 @@ const NAV_AGENT: NavItem[] = [
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function detectRole(user: User | null): string {
-    const roles: string[] = user?.roles ?? []
-    if (user?.is_superuser || user?.is_admin || roles.includes('ADMIN')) return 'admin'
-    if (roles.includes('UNIT_CHIEF')) return 'unit_chief'
-    if (roles.includes('APPROVER')) return 'approver'
-    if (roles.includes('EVALUATOR')) return 'evaluator'
-    if (roles.includes('MENTOR')) return 'mentor'
-    if (roles.includes('INSTRUCTOR')) return 'instructor'
-    return 'agent'
-}
 
 function getNavItems(role: string): NavItem[] {
     switch (role) {
